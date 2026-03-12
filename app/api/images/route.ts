@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
       response_format: 'b64_json',
     })
 
+    if (!response.data || response.data.length === 0) throw new Error('No image data returned')
     const imageData = response.data[0].b64_json
     if (!imageData) throw new Error('No image data returned')
 
