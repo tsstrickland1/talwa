@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap');
+
+@layer base {
+  :root {
+    /* Talwa brand mapped to shadcn/ui HSL tokens */
+    /* Background: cream #FAFAEF → ~60° 80% 96% */
+    --background: 60 67% 96%;
+    /* Foreground: navy #031D25 → ~197° 88% 8% */
+    --foreground: 197 88% 8%;
+
+    /* Card: cream */
+    --card: 60 67% 96%;
+    --card-foreground: 197 88% 8%;
+
+    /* Popover */
+    --popover: 60 67% 96%;
+    --popover-foreground: 197 88% 8%;
+
+    /* Primary: teal #0A4F66 → ~199° 82% 22% */
+    --primary: 199 82% 22%;
+    --primary-foreground: 60 67% 96%;
+
+    /* Secondary: sky #C7EDFA → ~199° 85% 88% */
+    --secondary: 199 85% 88%;
+    --secondary-foreground: 197 88% 8%;
+
+    /* Muted */
+    --muted: 60 20% 92%;
+    --muted-foreground: 197 40% 35%;
+
+    /* Accent: olive-light #DBD894 → ~58° 53% 72% */
+    --accent: 58 53% 72%;
+    --accent-foreground: 197 88% 8%;
+
+    /* Destructive: burnt-orange #BD4F00 → ~25° 100% 37% */
+    --destructive: 25 100% 37%;
+    --destructive-foreground: 60 67% 96%;
+
+    /* Border, Input, Ring */
+    --border: 60 20% 85%;
+    --input: 60 20% 90%;
+    --ring: 199 82% 22%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Dark mode: navy base */
+    --background: 197 88% 8%;
+    --foreground: 60 67% 96%;
+
+    --card: 197 70% 12%;
+    --card-foreground: 60 67% 96%;
+
+    --popover: 197 70% 12%;
+    --popover-foreground: 60 67% 96%;
+
+    --primary: 199 85% 88%;
+    --primary-foreground: 197 88% 8%;
+
+    --secondary: 197 50% 18%;
+    --secondary-foreground: 60 67% 96%;
+
+    --muted: 197 40% 18%;
+    --muted-foreground: 199 30% 65%;
+
+    --accent: 58 53% 65%;
+    --accent-foreground: 197 88% 8%;
+
+    --destructive: 25 100% 45%;
+    --destructive-foreground: 60 67% 96%;
+
+    --border: 197 40% 20%;
+    --input: 197 40% 20%;
+    --ring: 199 85% 60%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Source Sans 3', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Fraunces', Georgia, serif;
+  }
+}
