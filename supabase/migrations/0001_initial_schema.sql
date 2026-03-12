@@ -178,6 +178,22 @@ CREATE INDEX conversations_creator_id_idx ON public.conversations (creator_id);
 CREATE INDEX conversations_extraction_idx ON public.conversations (extraction_status, last_message_at)
   WHERE extraction_status = 'pending';
 
+-- ─── Messages ─────────────────────────────────────────────────────────────────
+
+CREATE TABLE public.messages (
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  conversation_id         UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  sender                  TEXT NOT NULL CHECK (sender IN ('human', 'ai_facilitator')),
+  content                 TEXT NOT NULL,
+  referenced_feature_ids  TEXT[] NOT NULL DEFAULT '{}',
+  location                JSONB,  -- { lat: number, lng: number } | null
+  creator_id              UUID NOT NULL REFERENCES public.users(id),
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX messages_conversation_id_idx ON public.messages (conversation_id);
+CREATE INDEX messages_created_at_idx ON public.messages (conversation_id, created_at);
+
 -- Trigger: update last_message_at when a message is inserted
 CREATE OR REPLACE FUNCTION public.update_conversation_timestamp()
 RETURNS TRIGGER
@@ -198,22 +214,6 @@ $$;
 CREATE TRIGGER on_message_inserted
   AFTER INSERT ON public.messages
   FOR EACH ROW EXECUTE FUNCTION public.update_conversation_timestamp();
-
--- ─── Messages ─────────────────────────────────────────────────────────────────
-
-CREATE TABLE public.messages (
-  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  conversation_id         UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
-  sender                  TEXT NOT NULL CHECK (sender IN ('human', 'ai_facilitator')),
-  content                 TEXT NOT NULL,
-  referenced_feature_ids  TEXT[] NOT NULL DEFAULT '{}',
-  location                JSONB,  -- { lat: number, lng: number } | null
-  creator_id              UUID NOT NULL REFERENCES public.users(id),
-  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX messages_conversation_id_idx ON public.messages (conversation_id);
-CREATE INDEX messages_created_at_idx ON public.messages (conversation_id, created_at);
 
 -- ─── Analytical Frameworks ────────────────────────────────────────────────────
 
