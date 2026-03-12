@@ -26,13 +26,18 @@ export async function signUp(formData: FormData) {
     redirect(`/signup?${params.toString()}`)
   }
 
-  // Update the users row with name fields (trigger only sets email + user_type)
+  // Upsert the users row — creates it if the DB trigger didn't, updates name fields either way
   if (data.user) {
     const admin = createAdminClient()
     await admin
       .from('users')
-      .update({ name_first: nameFirst, name_last: nameLast })
-      .eq('id', data.user.id)
+      .upsert({
+        id: data.user.id,
+        email: data.user.email ?? email,
+        name_first: nameFirst,
+        name_last: nameLast,
+        user_type: 'community_contributor',
+      })
   }
 
   // If email confirmation is disabled, redirect directly
