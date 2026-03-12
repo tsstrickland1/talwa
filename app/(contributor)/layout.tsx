@@ -24,7 +24,7 @@ export default async function ContributorLayout({
     .single()
 
   if (!profile) {
-    redirect('/login')
+    redirect('/auth/signout')
   }
 
   return (
