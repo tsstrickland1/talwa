@@ -12,7 +12,9 @@ export async function loginWithEmail(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
-    return { error: error.message }
+    const params = new URLSearchParams({ error: error.message })
+    if (next) params.set('next', next)
+    redirect(`/login?${params.toString()}`)
   }
 
   redirect(next ?? '/explore')

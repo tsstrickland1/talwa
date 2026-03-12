@@ -21,7 +21,9 @@ export async function signUp(formData: FormData) {
   })
 
   if (error) {
-    return { error: error.message }
+    const params = new URLSearchParams({ error: error.message })
+    if (next) params.set('next', next)
+    redirect(`/signup?${params.toString()}`)
   }
 
   // Update the users row with name fields (trigger only sets email + user_type)

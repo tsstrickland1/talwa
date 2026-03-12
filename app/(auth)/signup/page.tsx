@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { signUp } from './actions'
 
 type Props = {
-  searchParams: Promise<{ next?: string }>
+  searchParams: Promise<{ next?: string; error?: string }>
 }
 
 export default async function SignUpPage({ searchParams }: Props) {
@@ -20,6 +20,11 @@ export default async function SignUpPage({ searchParams }: Props) {
         <CardDescription>Join the community on Talwa</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {params.error && (
+          <div className="rounded-md bg-destructive/10 text-destructive text-sm p-3">
+            {params.error}
+          </div>
+        )}
         <form action={signUp} className="space-y-4">
           <input type="hidden" name="next" value={next} />
 
