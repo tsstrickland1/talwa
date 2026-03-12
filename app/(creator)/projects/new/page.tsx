@@ -63,7 +63,7 @@ export default function NewProjectPage() {
       })
     }
 
-    router.push(`/creator/projects/${project.id}/configure`)
+    router.push(`/projects/${project.id}/configure`)
   }
 
   const addQuestion = () => setQuestions((prev) => [...prev, ''])

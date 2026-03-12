@@ -6,5 +6,5 @@ type Props = {
 
 export default async function CreatorProjectRedirectPage({ params }: Props) {
   const { id } = await params
-  redirect(`/creator/projects/${id}/insights`)
+  redirect(`/projects/${id}/insights`)
 }

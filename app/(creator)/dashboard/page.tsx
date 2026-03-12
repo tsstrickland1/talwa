@@ -37,7 +37,7 @@ export default async function DashboardPage() {
           <p className="text-talwa-navy/60 mt-1">Manage your community engagement projects</p>
         </div>
         <Button asChild>
-          <Link href="/creator/projects/new">
+          <Link href="/projects/new">
             <Plus className="h-4 w-4 mr-2" />
             New Project
           </Link>
@@ -70,7 +70,7 @@ export default async function DashboardPage() {
             Create your first project to start collecting community insights.
           </p>
           <Button asChild>
-            <Link href="/creator/projects/new">
+            <Link href="/projects/new">
               <Plus className="h-4 w-4 mr-2" />
               Create Project
             </Link>

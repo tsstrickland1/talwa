@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Search } from 'lucide-react'
+import { Search, LayoutDashboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { NotificationBell } from './NotificationBell'
@@ -33,6 +33,7 @@ export function ContributorNav({ user }: ContributorNavProps) {
   }
 
   const initials = `${user.name_first[0] ?? ''}${user.name_last[0] ?? ''}`.toUpperCase()
+  const isCreator = user.user_type === 'project_creator' || user.user_type === 'admin'
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur">
@@ -56,6 +57,14 @@ export function ContributorNav({ user }: ContributorNavProps) {
               Explore
             </Link>
           </Button>
+          {isCreator && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/dashboard">
+                <LayoutDashboard className="h-4 w-4 mr-1.5" />
+                Creator Dashboard
+              </Link>
+            </Button>
+          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
@@ -78,6 +87,11 @@ export function ContributorNav({ user }: ContributorNavProps) {
                 <p className="text-xs text-muted-foreground truncate">{user.email}</p>
               </div>
               <DropdownMenuSeparator />
+              {isCreator && (
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard">Creator Dashboard</Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={handleSignOut}>
                 Sign out
               </DropdownMenuItem>

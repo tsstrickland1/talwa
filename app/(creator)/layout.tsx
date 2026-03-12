@@ -14,7 +14,7 @@ export default async function CreatorLayout({
   } = await supabase.auth.getUser()
 
   if (!authUser) {
-    redirect('/login?next=/creator/dashboard')
+    redirect('/login?next=/dashboard')
   }
 
   const { data: profile } = await supabase

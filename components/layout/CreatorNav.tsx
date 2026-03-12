@@ -38,37 +38,37 @@ type CreatorNavProps = {
 const projectNavItems = (projectId: string) => [
   {
     label: 'Insights',
-    href: `/creator/projects/${projectId}/insights`,
+    href: `/projects/${projectId}/insights`,
     icon: BarChart3,
   },
   {
     label: 'Features',
-    href: `/creator/projects/${projectId}/features`,
+    href: `/projects/${projectId}/features`,
     icon: Map,
   },
   {
     label: 'Contributors',
-    href: `/creator/projects/${projectId}/contributors`,
+    href: `/projects/${projectId}/contributors`,
     icon: Users,
   },
   {
     label: 'Conversations',
-    href: `/creator/projects/${projectId}/conversations`,
+    href: `/projects/${projectId}/conversations`,
     icon: MessageSquare,
   },
   {
     label: 'Sketches',
-    href: `/creator/projects/${projectId}/sketches`,
+    href: `/projects/${projectId}/sketches`,
     icon: ImageIcon,
   },
   {
     label: 'Updates',
-    href: `/creator/projects/${projectId}/updates`,
+    href: `/projects/${projectId}/updates`,
     icon: Megaphone,
   },
   {
     label: 'Configure',
-    href: `/creator/projects/${projectId}/configure`,
+    href: `/projects/${projectId}/configure`,
     icon: Settings,
   },
 ]
@@ -91,7 +91,7 @@ export function CreatorNav({ user, project, projects = [] }: CreatorNavProps) {
     <aside className="flex h-full w-60 flex-col border-r border-border bg-background">
       {/* Logo */}
       <div className="flex h-14 items-center border-b border-border px-4">
-        <Link href="/creator/dashboard">
+        <Link href="/dashboard">
           <Image
             src="/brand/lockup-horizontal.png"
             alt="Talwa"
@@ -110,7 +110,7 @@ export function CreatorNav({ user, project, projects = [] }: CreatorNavProps) {
           className="justify-start gap-2 mb-1"
           asChild
         >
-          <Link href="/creator/dashboard">
+          <Link href="/dashboard">
             <LayoutDashboard className="h-4 w-4" />
             Dashboard
           </Link>
@@ -136,13 +136,13 @@ export function CreatorNav({ user, project, projects = [] }: CreatorNavProps) {
               <DropdownMenuContent align="start" className="w-56">
                 {projects.map((p) => (
                   <DropdownMenuItem key={p.id} asChild>
-                    <Link href={`/creator/projects/${p.id}/insights`}>
+                    <Link href={`/projects/${p.id}/insights`}>
                       {p.name}
                     </Link>
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuItem asChild>
-                  <Link href="/creator/projects/new">+ New project</Link>
+                  <Link href="/projects/new">+ New project</Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
