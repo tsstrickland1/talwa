@@ -25,25 +25,37 @@ export default async function ContributorLayout({
     .single()
 
   if (!profile) {
-    // Profile row is missing (e.g. DB trigger didn't fire). Create a minimal one so
-    // the user isn't stuck in a redirect loop. They can fill in their name later.
+    // The regular client (subject to RLS) may return null even if the row exists.
+    // Re-check with the admin client (bypasses RLS) before creating a new row,
+    // to avoid overwriting an existing user_type via upsert conflict resolution.
     const admin = createAdminClient()
-    const { data: created } = await admin
+    const { data: existingProfile } = await admin
       .from('users')
-      .upsert({
-        id: authUser.id,
-        email: authUser.email ?? '',
-        name_first: '',
-        name_last: '',
-        user_type: 'community_contributor',
-      })
-      .select()
+      .select('*')
+      .eq('id', authUser.id)
       .single()
 
-    if (!created) {
-      redirect('/auth/signout')
+    if (existingProfile) {
+      profile = existingProfile
+    } else {
+      // Row truly doesn't exist (e.g. DB trigger didn't fire). Create a minimal one.
+      const { data: created } = await admin
+        .from('users')
+        .insert({
+          id: authUser.id,
+          email: authUser.email ?? '',
+          name_first: '',
+          name_last: '',
+          user_type: 'community_contributor',
+        })
+        .select()
+        .single()
+
+      if (!created) {
+        redirect('/auth/signout')
+      }
+      profile = created
     }
-    profile = created
   }
 
   return (
