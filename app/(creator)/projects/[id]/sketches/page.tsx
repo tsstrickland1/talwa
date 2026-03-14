@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { SketchCard } from '@/components/cards/SketchCard'
 import type { Sketch } from '@/lib/types'
 
@@ -14,9 +15,11 @@ export default async function SketchesPage({ params }: Props) {
   const { data: { user: authUser } } = await supabase.auth.getUser()
   if (!authUser) redirect('/login')
 
+  const admin = createAdminClient()
+
   const [projectResult, sketchesResult] = await Promise.all([
-    supabase.from('projects').select('name').eq('id', id).single(),
-    supabase
+    admin.from('projects').select('name').eq('id', id).single(),
+    admin
       .from('sketches')
       .select('*, creator:users(name_first, name_last, avatar), feature:features(name)')
       .eq('project_id', id)

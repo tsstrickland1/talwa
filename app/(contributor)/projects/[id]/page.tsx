@@ -20,8 +20,11 @@ export default async function ContributorProjectPage({ params }: Props) {
     redirect(`/login?next=/projects/${id}`)
   }
 
-  // Load project — public projects are accessible without project_access
-  const { data: project } = await supabase
+  // Load project and features via admin client (regular server client silently
+  // fails for PostgREST queries due to publishable key compatibility)
+  const admin = createAdminClient()
+
+  const { data: project } = await admin
     .from('projects')
     .select('*')
     .eq('id', id)
@@ -29,15 +32,12 @@ export default async function ContributorProjectPage({ params }: Props) {
 
   if (!project) notFound()
 
-  // Load features
-  const { data: features } = await supabase
+  const { data: features } = await admin
     .from('features')
     .select('*')
     .eq('project_id', id)
 
   // Create or find existing conversation for this user + project
-  // Use admin client to bypass RLS for the upsert
-  const admin = createAdminClient()
   const { data: conversation, error } = await admin
     .from('conversations')
     .upsert(
