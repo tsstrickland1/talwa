@@ -1,8 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { ContributorNav } from '@/components/layout/ContributorNav'
-import type { User } from '@/lib/types'
 
 export default async function ContributorLayout({
   children,
@@ -15,7 +13,7 @@ export default async function ContributorLayout({
   } = await supabase.auth.getUser()
 
   if (!authUser) {
-    redirect('/login?next=/explore')
+    redirect('/login')
   }
 
   let { data: profile } = await supabase
@@ -58,10 +56,7 @@ export default async function ContributorLayout({
     }
   }
 
-  return (
-    <div className="flex flex-col min-h-screen">
-      <ContributorNav user={profile as User} />
-      <main className="flex-1">{children}</main>
-    </div>
-  )
+  // Profile is available as `profile` for pages that need it via server props.
+  // No shared nav rendered here — each page manages its own layout.
+  return <>{children}</>
 }
