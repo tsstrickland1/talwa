@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { CreatorNav } from '@/components/layout/CreatorNav'
 import type { User, Project } from '@/lib/types'
 
@@ -17,14 +18,26 @@ export default async function CreatorLayout({
     redirect('/login?next=/dashboard')
   }
 
-  const { data: profile } = await supabase
+  let { data: profile } = await supabase
     .from('users')
     .select('*')
     .eq('id', authUser.id)
     .single()
 
   if (!profile) {
-    redirect('/login')
+    // Regular client (subject to RLS) may return null if the session cookie isn't
+    // forwarding correctly. Re-check with admin client to get the real profile.
+    const admin = createAdminClient()
+    const { data: adminProfile } = await admin
+      .from('users')
+      .select('*')
+      .eq('id', authUser.id)
+      .single()
+
+    if (!adminProfile) {
+      redirect('/login')
+    }
+    profile = adminProfile
   }
 
   if (profile.user_type === 'community_contributor') {
