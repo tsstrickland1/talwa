@@ -1,7 +1,8 @@
 'use client'
 
 import { useChat } from 'ai/react'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import type { Message } from 'ai'
 import type { Location, Feature } from '@/lib/types'
 
 export type SurfacedContent =
@@ -20,9 +21,24 @@ export function useFacilitator({
   const [activePin, setActivePin] = useState<Location | null>(null)
   const [activeFeature, setActiveFeature] = useState<Feature | null>(null)
   const [surfacedContent, setSurfacedContent] = useState<SurfacedContent>(null)
+  const [initialMessages, setInitialMessages] = useState<Message[]>([])
+  const [historyLoaded, setHistoryLoaded] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/facilitator/messages?conversation_id=${conversationId}`)
+      .then((res) => res.json())
+      .then(({ messages }) => {
+        setInitialMessages(messages ?? [])
+        setHistoryLoaded(true)
+      })
+      .catch(() => {
+        setHistoryLoaded(true)
+      })
+  }, [conversationId])
 
   const chat = useChat({
     api: '/api/facilitator',
+    initialMessages,
     body: {
       location: activePin,
       feature_id: activeFeature?.id ?? null,
@@ -75,6 +91,7 @@ export function useFacilitator({
     activePin,
     activeFeature,
     surfacedContent,
+    historyLoaded,
     pinLocation,
     clearPin,
     clearSurface,

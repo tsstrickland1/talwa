@@ -62,6 +62,26 @@ export async function POST(req: Request) {
     activeFeature,
   })
 
+  // Persist the user's message before streaming
+  const lastUserMessage = messages[messages.length - 1]
+  if (lastUserMessage?.role === 'user') {
+    const admin = createAdminClient()
+    await Promise.all([
+      admin.from('messages').insert({
+        conversation_id,
+        sender: 'human',
+        content: lastUserMessage.content,
+        referenced_feature_ids: feature_id ? [feature_id] : [],
+        location: location ?? null,
+        creator_id: user.id,
+      }),
+      admin
+        .from('conversations')
+        .update({ last_message_at: new Date().toISOString() })
+        .eq('id', conversation_id),
+    ])
+  }
+
   const result = streamText({
     model: getModel(MODELS.facilitator),
     system: systemPrompt,
