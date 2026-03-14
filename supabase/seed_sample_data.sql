@@ -569,7 +569,7 @@ BEGIN
   RAISE NOTICE 'Project 1 – Eastside Waterfront: %', v_proj1_id;
   RAISE NOTICE 'Project 2 – Division Street:     %', v_proj2_id;
   RAISE NOTICE '--------------------------------------------';
-  RAISE NOTICE 'Sign out and back in, then visit /creator/dashboard';
+  RAISE NOTICE 'Sign out and back in, then visit /dashboard';
 
 END;
 $$;
