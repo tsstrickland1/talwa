@@ -1,6 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import type { Feature } from '@/lib/types'
 
 type Props = {
@@ -14,11 +13,9 @@ export default async function FeaturesPage({ params }: Props) {
   const { data: { user: authUser } } = await supabase.auth.getUser()
   if (!authUser) redirect('/login')
 
-  const admin = createAdminClient()
-
   const [projectResult, featuresResult] = await Promise.all([
-    admin.from('projects').select('name').eq('id', id).single(),
-    admin.from('features').select('*').eq('project_id', id).order('created_at'),
+    supabase.from('projects').select('name').eq('id', id).single(),
+    supabase.from('features').select('*').eq('project_id', id).order('created_at'),
   ])
 
   if (!projectResult.data) notFound()

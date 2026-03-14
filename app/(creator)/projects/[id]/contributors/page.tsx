@@ -1,6 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import type { User, ProjectAccess } from '@/lib/types'
@@ -16,11 +15,9 @@ export default async function ContributorsPage({ params }: Props) {
   const { data: { user: authUser } } = await supabase.auth.getUser()
   if (!authUser) redirect('/login')
 
-  const admin = createAdminClient()
-
   const [projectResult, accessResult] = await Promise.all([
-    admin.from('projects').select('name').eq('id', id).single(),
-    admin
+    supabase.from('projects').select('name').eq('id', id).single(),
+    supabase
       .from('project_access')
       .select('*, users(*)')
       .eq('project_id', id),

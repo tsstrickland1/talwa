@@ -1,13 +1,13 @@
 export const dynamic = 'force-dynamic'
 
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { ProjectCard } from '@/components/cards/ProjectCard'
 import type { Project } from '@/lib/types'
 
 export default async function ExplorePage() {
-  const admin = createAdminClient()
+  const supabase = await createClient()
 
-  const { data: projects } = await admin
+  const { data: projects } = await supabase
     .from('projects')
     .select('*')
     .eq('publicly_visible', true)
