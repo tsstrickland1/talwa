@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { ProjectCard } from '@/components/cards/ProjectCard'
 import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
@@ -14,7 +15,8 @@ export default async function DashboardPage() {
 
   if (!authUser) redirect('/login')
 
-  const { data: projects } = await supabase
+  const admin = createAdminClient()
+  const { data: projects } = await admin
     .from('projects')
     .select('*')
     .eq('creator_id', authUser.id)
