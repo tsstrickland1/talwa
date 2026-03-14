@@ -20,11 +20,7 @@ export default async function ContributorProjectPage({ params }: Props) {
     redirect(`/login?next=/projects/${id}`)
   }
 
-  // Load project and features via admin client (regular server client silently
-  // fails for PostgREST queries due to publishable key compatibility)
-  const admin = createAdminClient()
-
-  const { data: project } = await admin
+  const { data: project } = await supabase
     .from('projects')
     .select('*')
     .eq('id', id)
@@ -32,10 +28,12 @@ export default async function ContributorProjectPage({ params }: Props) {
 
   if (!project) notFound()
 
-  const { data: features } = await admin
+  const { data: features } = await supabase
     .from('features')
     .select('*')
     .eq('project_id', id)
+
+  const admin = createAdminClient()
 
   // Create or find existing conversation for this user + project
   const { data: conversation, error } = await admin
