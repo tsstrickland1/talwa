@@ -1,15 +1,10 @@
 export const dynamic = 'force-dynamic'
 
-import nextDynamic from 'next/dynamic'
 import { Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { ProjectCard } from '@/components/cards/ProjectCard'
+import { ExploreMap } from './ExploreMap'
 import type { Project } from '@/lib/types'
-
-const MapContainer = nextDynamic(
-  () => import('@/components/map/MapContainer').then((m) => m.MapContainer),
-  { ssr: false }
-)
 
 const NEIGHBORHOOD_FILTERS = ['East Hill', 'North Hill', 'Downtown', 'Brownsville']
 
@@ -86,13 +81,7 @@ export default async function ExplorePage() {
 
             {/* Map panel */}
             <div className="hidden md:block rounded-xl overflow-hidden border border-border" style={{ minHeight: '320px' }}>
-              <MapContainer
-                mapboxToken={mapboxToken}
-                center={[-87.6298, 41.8781]}
-                zoom={11}
-                features={[]}
-                className="h-full w-full"
-              />
+              <ExploreMap mapboxToken={mapboxToken} />
             </div>
           </div>
         )}
