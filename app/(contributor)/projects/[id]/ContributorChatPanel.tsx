@@ -36,6 +36,7 @@ export function ContributorChatPanel({
     activePin,
     activeFeature,
     surfacedContent,
+    historyLoaded,
     pinLocation,
     clearSurface,
   } = useFacilitator({
@@ -67,6 +68,11 @@ export function ContributorChatPanel({
 
       {/* Chat — 60% */}
       <div className="flex-1 min-w-0">
+        {!historyLoaded ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="text-sm text-muted-foreground">Loading conversation…</div>
+          </div>
+        ) : (
         <ChatContainer
           messages={messages}
           input={input}
@@ -86,6 +92,7 @@ export function ContributorChatPanel({
             ) : null
           }
         />
+        )}
       </div>
     </div>
   )
