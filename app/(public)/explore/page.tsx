@@ -1,12 +1,12 @@
 export const dynamic = 'force-dynamic'
 
-import dynamic from 'next/dynamic'
+import nextDynamic from 'next/dynamic'
 import { Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { ProjectCard } from '@/components/cards/ProjectCard'
 import type { Project } from '@/lib/types'
 
-const MapContainer = dynamic(
+const MapContainer = nextDynamic(
   () => import('@/components/map/MapContainer').then((m) => m.MapContainer),
   { ssr: false }
 )
