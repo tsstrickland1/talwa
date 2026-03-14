@@ -63,7 +63,7 @@ export default async function ContributorProjectPage({ params }: Props) {
     }
 
     return (
-      <div className="h-[calc(100vh-3.5rem)]">
+      <div className="h-screen">
         <ContributorChatPanel
           project={project as Project}
           features={(features ?? []) as Feature[]}
@@ -75,7 +75,7 @@ export default async function ContributorProjectPage({ params }: Props) {
   }
 
   return (
-    <div className="h-[calc(100vh-3.5rem)]">
+    <div className="h-screen">
       <ContributorChatPanel
         project={project as Project}
         features={(features ?? []) as Feature[]}
