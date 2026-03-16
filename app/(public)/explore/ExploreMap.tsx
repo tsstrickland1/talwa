@@ -57,6 +57,8 @@ export function ExploreMap({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
+    let ro: ResizeObserver | null = null
+
     import('mapbox-gl').then(({ default: mapboxgl }) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(mapboxgl as any).accessToken = mapboxToken
@@ -73,6 +75,8 @@ export function ExploreMap({
       const flushPending = () => {
         if (mapReadyRef.current) return
         mapReadyRef.current = true
+        // Recalculate canvas size now that the map is in its final layout position
+        map.resize()
         if (pendingProjectsRef.current.length > 0) {
           renderMarkers(mapboxgl, map, pendingProjectsRef.current, null, onProjectClick)
           fitBounds(map, pendingProjectsRef.current)
@@ -85,9 +89,17 @@ export function ExploreMap({
       map.once('idle', flushPending)
       // Fallback: on error still attempt to render markers so they appear on a degraded map
       map.on('error', flushPending)
+
+      // Keep the canvas in sync whenever the container is resized (e.g. window resize
+      // or the sticky map snapping into its final layout position)
+      if (containerRef.current) {
+        ro = new ResizeObserver(() => map.resize())
+        ro.observe(containerRef.current)
+      }
     })
 
     return () => {
+      ro?.disconnect()
       mapRef.current?.remove()
       mapRef.current = null
       mapReadyRef.current = false

@@ -220,10 +220,11 @@ export default function ExplorePage() {
           </div>
         </div>
 
-        {/* Map — sticky on desktop so it stays in view as the list scrolls;
-             on mobile it fills the viewport when toggled into map view */}
+        {/* Map — sticky below the nav on desktop so it stays in view as the list scrolls;
+             on mobile it fills the remaining viewport when toggled into map view.
+             top-14 = 56px nav height; h-[calc(100vh-3.5rem)] fills the rest of the screen */}
         <div
-          className={`sticky top-0 h-screen w-full md:w-1/2 ${
+          className={`sticky top-14 h-[calc(100vh-3.5rem)] w-full md:w-1/2 ${
             mobileView === 'list' ? 'hidden md:block' : 'block'
           }`}
         >
