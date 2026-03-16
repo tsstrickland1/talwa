@@ -23,9 +23,9 @@ export default async function PublicLayout({
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col min-h-screen">
       <PublicNav user={user} />
-      <main className="flex-1 overflow-hidden">{children}</main>
+      <main className="flex-1 flex flex-col">{children}</main>
     </div>
   )
 }

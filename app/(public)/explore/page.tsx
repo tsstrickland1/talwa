@@ -86,7 +86,7 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col">
       {/* ── Hero ──────────────────────────────────────────────── */}
       {/* bg-talwa-olive-light via explicit hex in case Tailwind class isn't yet compiled */}
       <section
@@ -174,10 +174,10 @@ export default function ExplorePage() {
       </div>
 
       {/* ── Content: project list (left) + map (right) ────────── */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex">
         {/* Project list */}
         <div
-          className={`w-full md:w-1/2 overflow-y-auto ${
+          className={`w-full md:w-1/2 ${
             mobileView === 'map' ? 'hidden md:flex md:flex-col' : 'flex flex-col'
           }`}
           style={{ backgroundColor: '#FAFAEF' }}
@@ -220,9 +220,10 @@ export default function ExplorePage() {
           </div>
         </div>
 
-        {/* Map */}
+        {/* Map — sticky on desktop so it stays in view as the list scrolls;
+             on mobile it fills the viewport when toggled into map view */}
         <div
-          className={`w-full md:w-1/2 h-full ${
+          className={`sticky top-0 h-screen w-full md:w-1/2 ${
             mobileView === 'list' ? 'hidden md:block' : 'block'
           }`}
         >
