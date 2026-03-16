@@ -184,7 +184,7 @@ export function ExploreMap({
   }
 
   return (
-    <div className="h-full w-full" style={{ minHeight: '400px' }}>
+    <div className="absolute inset-0">
       <div ref={containerRef} className="h-full w-full" />
     </div>
   )

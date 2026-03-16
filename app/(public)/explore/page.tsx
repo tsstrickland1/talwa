@@ -235,7 +235,7 @@ export default function ExplorePage() {
                flex-stretch is implicit and height: 100% on children resolves to 0,
                causing the minHeight:400px fallback to mismatch the canvas size. */}
           <div
-            className={`w-full md:w-1/2 h-full ${
+            className={`relative w-full md:w-1/2 ${
               mobileView === 'list' ? 'hidden md:block' : 'block'
             }`}
           >
