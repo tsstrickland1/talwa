@@ -222,7 +222,7 @@ export default function ExplorePage() {
 
         {/* Map */}
         <div
-          className={`w-full md:w-1/2 md:sticky md:top-14 md:h-[calc(100vh-3.5rem)] ${
+          className={`w-full md:w-1/2 md:sticky md:top-14 md:h-[calc(100vh-3.5rem)] overflow-hidden ${
             mobileView === 'list' ? 'hidden md:block' : 'block h-[calc(100vh-6rem)] md:h-[calc(100vh-3.5rem)]'
           }`}
         >
