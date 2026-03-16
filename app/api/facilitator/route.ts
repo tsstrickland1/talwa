@@ -10,7 +10,7 @@ export const maxDuration = 60
 
 export async function POST(req: Request) {
   const body = (await req.json()) as FacilitatorRequestBody
-  const { messages, location, feature_id, project_id, conversation_id } = body
+  const { messages, location, feature_id, contributor_drew, project_id, conversation_id } = body
 
   const supabase = await createServerClient()
   const {
@@ -60,6 +60,7 @@ export async function POST(req: Request) {
     existingThemes: themesResult.data ?? [],
     location: location ?? null,
     activeFeature,
+    contributorDrew: contributor_drew ?? false,
   })
 
   // Persist the user's message before streaming

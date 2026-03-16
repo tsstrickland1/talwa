@@ -1,7 +1,9 @@
 'use client'
 
+import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css'
+
 import { useRef, useEffect, useCallback, useState } from 'react'
-import type { Feature, Location } from '@/lib/types'
+import type { Feature, FeatureGeoJSON, Location } from '@/lib/types'
 
 // mapbox-gl is imported dynamically to avoid SSR issues.
 // Wrap any component using this hook with dynamic(() => import(...), { ssr: false })
@@ -13,8 +15,95 @@ type UseMapOptions = {
   center: [number, number]
   zoom?: number
   features?: Feature[]
+  drawingEnabled?: boolean
   onFeatureClick?: (feature: Feature) => void
   onMapClick?: (location: Location) => void
+  onFeatureDraw?: (geojson: FeatureGeoJSON) => void
+  onGeometryUpdate?: (geojson: FeatureGeoJSON) => void
+  onDrawDelete?: () => void
+}
+
+// Adds a single feature layer to an already-loaded map.
+// Registers the layer IDs in layerFeatureMap so the global click handler can resolve clicks.
+function addFeatureLayerToMap(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  map: any,
+  feature: Feature,
+  layerFeatureMap: Map<string, Feature>
+) {
+  try {
+    const geojsonData =
+      typeof feature.geojson === 'string'
+        ? JSON.parse(feature.geojson)
+        : feature.geojson
+
+    const sourceId = `feature-source-${feature.id}`
+    const layerId = `feature-layer-${feature.id}`
+
+    if (map.getSource(sourceId)) return
+
+    map.addSource(sourceId, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        geometry: geojsonData,
+        properties: { id: feature.id, name: feature.name, type: feature.type },
+      },
+    })
+
+    const geometryType: string = geojsonData.type
+
+    if (geometryType === 'LineString' || geometryType === 'MultiLineString') {
+      map.addLayer({
+        id: layerId,
+        type: 'line',
+        source: sourceId,
+        paint: { 'line-color': '#0A4F66', 'line-width': 3, 'line-opacity': 0.8 },
+      })
+      layerFeatureMap.set(layerId, feature)
+    } else if (geometryType === 'Point' || geometryType === 'MultiPoint') {
+      map.addLayer({
+        id: layerId,
+        type: 'circle',
+        source: sourceId,
+        paint: {
+          'circle-radius': 8,
+          'circle-color': '#ADA739',
+          'circle-stroke-color': '#031D25',
+          'circle-stroke-width': 2,
+        },
+      })
+      layerFeatureMap.set(layerId, feature)
+    } else {
+      // Polygon / MultiPolygon — register both fill and stroke
+      const fillId = `${layerId}-fill`
+      map.addLayer({
+        id: fillId,
+        type: 'fill',
+        source: sourceId,
+        paint: { 'fill-color': '#0A4F66', 'fill-opacity': 0.15 },
+      })
+      map.addLayer({
+        id: layerId,
+        type: 'line',
+        source: sourceId,
+        paint: { 'line-color': '#0A4F66', 'line-width': 2 },
+      })
+      layerFeatureMap.set(fillId, feature)
+      layerFeatureMap.set(layerId, feature)
+    }
+
+    // Cursor — not affected by MapboxDraw stopPropagation
+    map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer' })
+    map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = '' })
+    if (geometryType === 'Polygon' || geometryType === 'MultiPolygon') {
+      const fillId = `${layerId}-fill`
+      map.on('mouseenter', fillId, () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', fillId, () => { map.getCanvas().style.cursor = '' })
+    }
+  } catch (e) {
+    console.error(`Failed to add feature ${feature.id}:`, e)
+  }
 }
 
 export function useMap({
@@ -22,20 +111,47 @@ export function useMap({
   center,
   zoom = 13,
   features = [],
+  drawingEnabled = false,
   onFeatureClick,
   onMapClick,
+  onFeatureDraw,
+  onGeometryUpdate,
+  onDrawDelete,
 }: UseMapOptions) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<InstanceType<MapboxMap> | null>(null)
-  const pinMarkerRef = useRef<unknown>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapRef = useRef<any>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pinMarkerRef = useRef<any>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const drawRef = useRef<any>(null)
+  const editingDrawIdRef = useRef<{ featureId: string; drawId: string } | null>(null)
+  // Maps layerId → Feature; used by the early global click handler
+  const layerFeatureMapRef = useRef<Map<string, Feature>>(new Map())
+
+  // Refs for all callbacks so event handlers captured at init always call latest versions
+  const onFeatureClickRef = useRef(onFeatureClick)
+  const onFeatureDrawRef = useRef(onFeatureDraw)
+  const onGeometryUpdateRef = useRef(onGeometryUpdate)
+  const onDrawDeleteRef = useRef(onDrawDelete)
+  const onMapClickRef = useRef(onMapClick)
+
+  useEffect(() => { onFeatureClickRef.current = onFeatureClick }, [onFeatureClick])
+  useEffect(() => { onFeatureDrawRef.current = onFeatureDraw }, [onFeatureDraw])
+  useEffect(() => { onGeometryUpdateRef.current = onGeometryUpdate }, [onGeometryUpdate])
+  useEffect(() => { onDrawDeleteRef.current = onDrawDelete }, [onDrawDelete])
+  useEffect(() => { onMapClickRef.current = onMapClick }, [onMapClick])
+
   const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
 
-    let map: InstanceType<MapboxMap>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let map: any
 
-    import('mapbox-gl').then((mapboxgl) => {
+    const initMap = async () => {
+      const mapboxgl = await import('mapbox-gl')
       mapboxgl.default.accessToken = mapboxToken
 
       map = new mapboxgl.default.Map({
@@ -45,104 +161,71 @@ export function useMap({
         zoom,
       })
 
+      mapRef.current = map
+
+      // Register our feature-click handler BEFORE MapboxDraw is initialised.
+      // MapboxDraw calls stopPropagation() which blocks layer-specific handlers
+      // registered via map.on('click', layerId, ...) after addControl().
+      // By using a global handler here (before addControl) + queryRenderedFeatures
+      // we fire first and resolve the click ourselves.
+      map.on('click', (e: { point: unknown }) => {
+        const layerIds = Array.from(layerFeatureMapRef.current.keys()).filter((id) => {
+          try { return !!map.getLayer(id) } catch { return false }
+        })
+        if (layerIds.length === 0) return
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const clicked: any[] = map.queryRenderedFeatures(e.point, { layers: layerIds })
+        if (clicked.length > 0) {
+          const feature = layerFeatureMapRef.current.get(clicked[0].layer.id)
+          if (feature) onFeatureClickRef.current?.(feature)
+        }
+      })
+
+      if (drawingEnabled) {
+        const MapboxDraw = (await import('@mapbox/mapbox-gl-draw')).default
+        const draw = new MapboxDraw({
+          displayControlsDefault: false,
+          controls: { point: true, line_string: true, polygon: true, trash: true },
+        })
+        map.addControl(draw, 'top-left')
+        drawRef.current = draw
+
+        map.on('draw.create', (e: { features: GeoJSON.Feature[] }) => {
+          const drawn = e.features[0]
+          if (drawn?.geometry) onFeatureDrawRef.current?.(drawn.geometry as FeatureGeoJSON)
+        })
+
+        map.on('draw.update', (e: { features: GeoJSON.Feature[] }) => {
+          const updated = e.features[0]
+          if (updated?.geometry) onGeometryUpdateRef.current?.(updated.geometry as FeatureGeoJSON)
+        })
+
+        map.on('draw.delete', (e: { features: GeoJSON.Feature[] }) => {
+          if (e.features.length === 0) onDrawDeleteRef.current?.()
+        })
+      }
+
       map.on('load', () => {
         setIsLoaded(true)
-
-        // Add feature layers
         features.forEach((feature) => {
-          try {
-            const geojsonData = typeof feature.geojson === 'string'
-              ? JSON.parse(feature.geojson)
-              : feature.geojson
-
-            const sourceId = `feature-source-${feature.id}`
-            const layerId = `feature-layer-${feature.id}`
-
-            if (map.getSource(sourceId)) return
-
-            map.addSource(sourceId, {
-              type: 'geojson',
-              data: {
-                type: 'Feature',
-                geometry: geojsonData,
-                properties: { id: feature.id, name: feature.name, type: feature.type },
-              },
-            })
-
-            const geometryType: string = geojsonData.type
-
-            if (geometryType === 'LineString' || geometryType === 'MultiLineString') {
-              map.addLayer({
-                id: layerId,
-                type: 'line',
-                source: sourceId,
-                paint: {
-                  'line-color': '#0A4F66',
-                  'line-width': 3,
-                  'line-opacity': 0.8,
-                },
-              })
-            } else if (geometryType === 'Point' || geometryType === 'MultiPoint') {
-              map.addLayer({
-                id: layerId,
-                type: 'circle',
-                source: sourceId,
-                paint: {
-                  'circle-radius': 8,
-                  'circle-color': '#ADA739',
-                  'circle-stroke-color': '#031D25',
-                  'circle-stroke-width': 2,
-                },
-              })
-            } else {
-              // Polygon / MultiPolygon
-              map.addLayer({
-                id: `${layerId}-fill`,
-                type: 'fill',
-                source: sourceId,
-                paint: {
-                  'fill-color': '#0A4F66',
-                  'fill-opacity': 0.15,
-                },
-              })
-              map.addLayer({
-                id: layerId,
-                type: 'line',
-                source: sourceId,
-                paint: {
-                  'line-color': '#0A4F66',
-                  'line-width': 2,
-                },
-              })
-            }
-
-            map.on('click', layerId, () => {
-              onFeatureClick?.(feature)
-            })
-
-            map.on('mouseenter', layerId, () => {
-              map.getCanvas().style.cursor = 'pointer'
-            })
-            map.on('mouseleave', layerId, () => {
-              map.getCanvas().style.cursor = ''
-            })
-          } catch (e) {
-            console.error(`Failed to add feature ${feature.id}:`, e)
-          }
+          addFeatureLayerToMap(map, feature, layerFeatureMapRef.current)
         })
       })
 
-      map.on('click', (e) => {
-        // Only fire if not clicking a feature layer
-        onMapClick?.({ lat: e.lngLat.lat, lng: e.lngLat.lng })
-      })
+      if (!drawingEnabled) {
+        map.on('click', (e: { lngLat: { lat: number; lng: number } }) => {
+          onMapClickRef.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng })
+        })
+      }
+    }
 
-      mapRef.current = map
-    })
+    initMap()
 
     return () => {
       map?.remove()
       mapRef.current = null
+      drawRef.current = null
+      layerFeatureMapRef.current.clear()
     }
   }, []) // Empty deps — map initialized once on mount
 
@@ -152,25 +235,19 @@ export function useMap({
 
   const addPin = useCallback((location: Location) => {
     import('mapbox-gl').then((mapboxgl) => {
-      // Remove existing pin
-      if (pinMarkerRef.current) {
-        (pinMarkerRef.current as { remove: () => void }).remove()
-      }
-
+      if (pinMarkerRef.current) pinMarkerRef.current.remove()
       const el = document.createElement('div')
       el.className = 'w-6 h-6 rounded-full bg-talwa-burnt-orange border-2 border-white shadow-lg cursor-pointer'
-
       const marker = new mapboxgl.default.Marker({ element: el })
         .setLngLat([location.lng, location.lat])
         .addTo(mapRef.current!)
-
       pinMarkerRef.current = marker
     })
   }, [])
 
   const removePin = useCallback(() => {
     if (pinMarkerRef.current) {
-      (pinMarkerRef.current as { remove: () => void }).remove()
+      pinMarkerRef.current.remove()
       pinMarkerRef.current = null
     }
   }, [])
@@ -178,26 +255,19 @@ export function useMap({
   const filterToDataPoints = useCallback(
     (dataPoints: Array<{ id: string; location: Location | null }>) => {
       if (!mapRef.current || !isLoaded) return
-
       const map = mapRef.current
       const sourceId = 'data-points-source'
-
       const geojsonData = {
         type: 'FeatureCollection' as const,
         features: dataPoints
           .filter((dp) => dp.location)
           .map((dp) => ({
             type: 'Feature' as const,
-            geometry: {
-              type: 'Point' as const,
-              coordinates: [dp.location!.lng, dp.location!.lat],
-            },
+            geometry: { type: 'Point' as const, coordinates: [dp.location!.lng, dp.location!.lat] },
             properties: { id: dp.id },
           })),
       }
-
       if (map.getSource(sourceId)) {
-        // @ts-expect-error setData exists on GeoJSONSource
         map.getSource(sourceId).setData(geojsonData)
       } else {
         map.addSource(sourceId, { type: 'geojson', data: geojsonData, cluster: true })
@@ -217,6 +287,62 @@ export function useMap({
     [isLoaded]
   )
 
+  const addFeatureLayer = useCallback((feature: Feature) => {
+    if (!mapRef.current) return
+    addFeatureLayerToMap(mapRef.current, feature, layerFeatureMapRef.current)
+  }, [])
+
+  const removeFeatureLayer = useCallback((featureId: string) => {
+    const map = mapRef.current
+    if (!map) return
+    const sourceId = `feature-source-${featureId}`
+    const layerId = `feature-layer-${featureId}`
+    const fillLayerId = `${layerId}-fill`
+    layerFeatureMapRef.current.delete(layerId)
+    layerFeatureMapRef.current.delete(fillLayerId)
+    if (map.getLayer(fillLayerId)) map.removeLayer(fillLayerId)
+    if (map.getLayer(layerId)) map.removeLayer(layerId)
+    if (map.getSource(sourceId)) map.removeSource(sourceId)
+  }, [])
+
+  const startEditGeometry = useCallback((feature: Feature) => {
+    const map = mapRef.current
+    const draw = drawRef.current
+    if (!map || !draw) return
+    const geojsonData =
+      typeof feature.geojson === 'string' ? JSON.parse(feature.geojson) : feature.geojson
+    const ids = draw.add({ type: 'Feature', geometry: geojsonData, properties: {} }) as string[]
+    const drawId = ids[0]
+    editingDrawIdRef.current = { featureId: feature.id, drawId }
+    draw.changeMode('direct_select', { featureId: drawId })
+    const layerId = `feature-layer-${feature.id}`
+    const fillId = `${layerId}-fill`
+    if (map.getLayer(fillId)) map.setLayoutProperty(fillId, 'visibility', 'none')
+    if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', 'none')
+  }, [])
+
+  const stopEditGeometry = useCallback((featureId: string) => {
+    const map = mapRef.current
+    const draw = drawRef.current
+    if (!map || !draw) return
+    if (editingDrawIdRef.current?.featureId === featureId) {
+      draw.delete(editingDrawIdRef.current.drawId)
+      editingDrawIdRef.current = null
+    }
+    draw.changeMode('simple_select')
+    const layerId = `feature-layer-${featureId}`
+    const fillId = `${layerId}-fill`
+    if (map.getLayer(fillId)) map.setLayoutProperty(fillId, 'visibility', 'visible')
+    if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', 'visible')
+  }, [])
+
+  const cancelDraw = useCallback(() => {
+    if (drawRef.current) {
+      drawRef.current.deleteAll()
+      editingDrawIdRef.current = null
+    }
+  }, [])
+
   return {
     mapContainerRef,
     isLoaded,
@@ -224,5 +350,10 @@ export function useMap({
     addPin,
     removePin,
     filterToDataPoints,
+    addFeatureLayer,
+    removeFeatureLayer,
+    startEditGeometry,
+    stopEditGeometry,
+    cancelDraw,
   }
 }

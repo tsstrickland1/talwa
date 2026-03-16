@@ -7,6 +7,7 @@ export function buildFacilitatorSystemPrompt({
   existingThemes,
   location,
   activeFeature,
+  contributorDrew = false,
 }: {
   project: Project
   features: Feature[]
@@ -14,6 +15,7 @@ export function buildFacilitatorSystemPrompt({
   existingThemes: Theme[]
   location?: Location | null
   activeFeature?: Feature | null
+  contributorDrew?: boolean
 }): string {
   const featureList = features.length > 0
     ? features.map(f => `- ${f.name} (${f.type}): ${f.description}`).join('\n')
@@ -27,9 +29,12 @@ export function buildFacilitatorSystemPrompt({
     ? existingThemes.map(t => `[${t.id}] "${t.name}": ${t.summary}`).join('\n')
     : 'No themes have emerged from community feedback yet — you are collecting early perspectives.'
 
-  const locationContext = location
-    ? `\n\nACTIVE PIN: The contributor has placed a pin on the map at lat ${location.lat.toFixed(5)}, lng ${location.lng.toFixed(5)}.${activeFeature ? ` This is near "${activeFeature.name}" (${activeFeature.type}).` : ''} Acknowledge this and invite them to share what's on their mind about this specific location.`
-    : ''
+  let locationContext = ''
+  if (activeFeature && contributorDrew) {
+    locationContext = `\n\nDRAWN AREA: The contributor has just drawn a ${activeFeature.type} on the map called "${activeFeature.name}"${activeFeature.description ? ` — ${activeFeature.description}` : ''}. This is a new area they have identified and want to discuss. Warmly acknowledge their contribution and invite them to share what this place means to them, what they experience there, or what they would like to see happen there.`
+  } else if (location) {
+    locationContext = `\n\nACTIVE PIN: The contributor has placed a pin on the map at lat ${location.lat.toFixed(5)}, lng ${location.lng.toFixed(5)}.${activeFeature ? ` This is near "${activeFeature.name}" (${activeFeature.type}).` : ''} Acknowledge this and invite them to share what's on their mind about this specific location.`
+  }
 
   return `You are a community engagement facilitator for the project "${project.name}".
 
