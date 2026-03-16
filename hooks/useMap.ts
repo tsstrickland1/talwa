@@ -276,6 +276,21 @@ export function useMap({
     [isLoaded, onFeatureClick]
   )
 
+  // Remove a feature's layers and source from the map (called after deletion)
+  const removeFeatureLayer = useCallback(
+    (featureId: string) => {
+      const map = mapRef.current
+      if (!map || !isLoaded) return
+      const sourceId = `feature-source-${featureId}`
+      const layerId = `feature-layer-${featureId}`
+      const fillLayerId = `${layerId}-fill`
+      if (map.getLayer(fillLayerId)) map.removeLayer(fillLayerId)
+      if (map.getLayer(layerId)) map.removeLayer(layerId)
+      if (map.getSource(sourceId)) map.removeSource(sourceId)
+    },
+    [isLoaded]
+  )
+
   // Remove the last drawn shape from the draw control (called on modal cancel)
   const cancelDraw = useCallback(() => {
     if (drawRef.current) {
@@ -291,6 +306,7 @@ export function useMap({
     removePin,
     filterToDataPoints,
     addFeatureLayer,
+    removeFeatureLayer,
     cancelDraw,
   }
 }

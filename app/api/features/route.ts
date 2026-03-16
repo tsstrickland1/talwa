@@ -70,7 +70,6 @@ export async function POST(req: Request) {
     .single()
 
   if (insertResult.error?.message?.includes('"source"')) {
-    // Migration not yet applied — insert without the source column
     insertResult = await admin
       .from('features')
       .insert({
@@ -92,8 +91,82 @@ export async function POST(req: Request) {
     return Response.json({ error: error.message }, { status: 500 })
   }
 
-  // Attach source to the returned object even if the column doesn't exist in DB yet
-  return Response.json({ ...data, source: (data as Record<string, unknown>).source ?? source }, { status: 201 })
+  return Response.json(
+    { ...data, source: (data as Record<string, unknown>).source ?? source },
+    { status: 201 }
+  )
+}
+
+export async function PATCH(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const featureId = searchParams.get('id')
+
+  if (!featureId) {
+    return new Response('Missing feature id', { status: 400 })
+  }
+
+  const supabase = await createServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return new Response('Unauthorized', { status: 401 })
+  }
+
+  const body = await req.json() as {
+    name?: string
+    type?: FeatureType
+    description?: string
+  }
+
+  const admin = createAdminClient()
+
+  // Only project creator or the feature's creator can edit
+  const { data: feature } = await admin
+    .from('features')
+    .select('creator_id, project_id')
+    .eq('id', featureId)
+    .single()
+
+  if (!feature) {
+    return new Response('Not found', { status: 404 })
+  }
+
+  const { data: project } = await admin
+    .from('projects')
+    .select('creator_id')
+    .eq('id', feature.project_id)
+    .single()
+
+  const isProjectCreator = project?.creator_id === user.id
+  const isFeatureOwner = feature.creator_id === user.id
+
+  if (!isProjectCreator && !isFeatureOwner) {
+    return new Response('Forbidden', { status: 403 })
+  }
+
+  const updates: Record<string, unknown> = {}
+  if (body.name !== undefined) updates.name = body.name
+  if (body.type !== undefined) updates.type = body.type
+  if (body.description !== undefined) updates.description = body.description
+
+  if (Object.keys(updates).length === 0) {
+    return new Response('No fields to update', { status: 400 })
+  }
+
+  const { data, error } = await admin
+    .from('features')
+    .update(updates)
+    .eq('id', featureId)
+    .select('*')
+    .single()
+
+  if (error) {
+    return Response.json({ error: error.message }, { status: 500 })
+  }
+
+  return Response.json(data)
 }
 
 export async function DELETE(req: Request) {
@@ -115,10 +188,10 @@ export async function DELETE(req: Request) {
 
   const admin = createAdminClient()
 
-  // Fetch feature to check ownership / source
+  // Select only columns that exist regardless of migration state
   const { data: feature } = await admin
     .from('features')
-    .select('creator_id, source, project_id')
+    .select('creator_id, project_id')
     .eq('id', featureId)
     .single()
 
@@ -126,18 +199,17 @@ export async function DELETE(req: Request) {
     return new Response('Not found', { status: 404 })
   }
 
-  // Project creator can delete any feature; contributors only their own drawn ones
   const { data: project } = await admin
     .from('projects')
     .select('creator_id')
     .eq('id', feature.project_id)
     .single()
 
+  // Project creator can delete any feature; feature owner can delete their own
   const isProjectCreator = project?.creator_id === user.id
-  const isOwnContributorFeature =
-    feature.source === 'contributor' && feature.creator_id === user.id
+  const isFeatureOwner = feature.creator_id === user.id
 
-  if (!isProjectCreator && !isOwnContributorFeature) {
+  if (!isProjectCreator && !isFeatureOwner) {
     return new Response('Forbidden', { status: 403 })
   }
 

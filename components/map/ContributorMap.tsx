@@ -7,6 +7,7 @@ import type { Feature, FeatureGeoJSON, Location } from '@/lib/types'
 
 export type ContributorMapHandle = {
   addFeatureLayer: (feature: Feature) => void
+  removeFeatureLayer: (featureId: string) => void
   cancelDraw: () => void
 }
 
@@ -39,7 +40,7 @@ export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapPro
     },
     ref
   ) {
-    const { mapContainerRef, addPin, removePin, addFeatureLayer, cancelDraw } = useMap({
+    const { mapContainerRef, addPin, removePin, addFeatureLayer, removeFeatureLayer, cancelDraw } = useMap({
       mapboxToken,
       center,
       zoom,
@@ -51,8 +52,9 @@ export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapPro
     })
 
     // Expose imperative methods to parent via ref
-    useImperativeHandle(ref, () => ({ addFeatureLayer, cancelDraw }), [
+    useImperativeHandle(ref, () => ({ addFeatureLayer, removeFeatureLayer, cancelDraw }), [
       addFeatureLayer,
+      removeFeatureLayer,
       cancelDraw,
     ])
 
