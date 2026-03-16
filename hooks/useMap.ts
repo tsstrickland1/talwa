@@ -24,12 +24,12 @@ type UseMapOptions = {
 }
 
 // Adds a single feature layer to an already-loaded map.
-// Extracted so it can be called both at init time and dynamically after draw.
+// Registers the layer IDs in layerFeatureMap so the global click handler can resolve clicks.
 function addFeatureLayerToMap(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   map: any,
   feature: Feature,
-  onFeatureClick?: (feature: Feature) => void
+  layerFeatureMap: Map<string, Feature>
 ) {
   try {
     const geojsonData =
@@ -40,12 +40,7 @@ function addFeatureLayerToMap(
     const sourceId = `feature-source-${feature.id}`
     const layerId = `feature-layer-${feature.id}`
 
-    console.log('[useMap] addFeatureLayerToMap', feature.id, feature.name, 'hasClickFn:', !!onFeatureClick)
-
-    if (map.getSource(sourceId)) {
-      console.log('[useMap] source already exists for', feature.id)
-      return
-    }
+    if (map.getSource(sourceId)) return
 
     map.addSource(sourceId, {
       type: 'geojson',
@@ -69,6 +64,7 @@ function addFeatureLayerToMap(
           'line-opacity': 0.8,
         },
       })
+      layerFeatureMap.set(layerId, feature)
     } else if (geometryType === 'Point' || geometryType === 'MultiPoint') {
       map.addLayer({
         id: layerId,
@@ -81,10 +77,12 @@ function addFeatureLayerToMap(
           'circle-stroke-width': 2,
         },
       })
+      layerFeatureMap.set(layerId, feature)
     } else {
       // Polygon / MultiPolygon
+      const fillId = `${layerId}-fill`
       map.addLayer({
-        id: `${layerId}-fill`,
+        id: fillId,
         type: 'fill',
         source: sourceId,
         paint: {
@@ -101,23 +99,16 @@ function addFeatureLayerToMap(
           'line-width': 2,
         },
       })
+      layerFeatureMap.set(fillId, feature)
+      layerFeatureMap.set(layerId, feature)
     }
 
-    // Register click/cursor on the stroke layer
-    map.on('click', layerId, () => {
-      console.log('[useMap] layer click fired', layerId, feature.id)
-      onFeatureClick?.(feature)
-    })
+    // Cursor — these are not blocked by MapboxDraw
     map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer' })
     map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = '' })
 
-    // For polygons also register on the fill layer so interior clicks work
     if (geometryType === 'Polygon' || geometryType === 'MultiPolygon') {
       const fillId = `${layerId}-fill`
-      map.on('click', fillId, () => {
-        console.log('[useMap] fill click fired', fillId, feature.id)
-        onFeatureClick?.(feature)
-      })
       map.on('mouseenter', fillId, () => { map.getCanvas().style.cursor = 'pointer' })
       map.on('mouseleave', fillId, () => { map.getCanvas().style.cursor = '' })
     }
@@ -147,7 +138,16 @@ export function useMap({
   const drawRef = useRef<any>(null)
   // Maps our feature IDs to the draw-assigned IDs used during geometry editing
   const editingDrawIdRef = useRef<{ featureId: string; drawId: string } | null>(null)
+  // Maps layerId → Feature so the early global click handler can resolve hits
+  const layerFeatureMapRef = useRef<Map<string, Feature>>(new Map())
+  // Ref so the global click handler always calls the latest onFeatureClick
+  const onFeatureClickRef = useRef(onFeatureClick)
   const [isLoaded, setIsLoaded] = useState(false)
+
+  // Keep onFeatureClickRef current so the global click handler doesn't go stale
+  useEffect(() => {
+    onFeatureClickRef.current = onFeatureClick
+  }, [onFeatureClick])
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
@@ -167,6 +167,30 @@ export function useMap({
       })
 
       mapRef.current = map
+
+      // Register our feature-click handler BEFORE MapboxDraw is initialised.
+      // MapboxDraw calls stopPropagation() on Mapbox GL click events, which would
+      // block layer-specific handlers registered after addControl(). By registering
+      // a global handler here first, we fire before MapboxDraw and do our own
+      // hit-testing via queryRenderedFeatures.
+      map.on('click', (e: { point: { x: number; y: number } }) => {
+        const layerIds = Array.from(layerFeatureMapRef.current.keys()).filter(
+          (id) => {
+            try { return !!map.getLayer(id) } catch { return false }
+          }
+        )
+        if (layerIds.length === 0) return
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const clicked: any[] = map.queryRenderedFeatures(e.point, { layers: layerIds })
+        if (clicked.length > 0) {
+          const hitLayerId: string = clicked[0].layer.id
+          const feature = layerFeatureMapRef.current.get(hitLayerId)
+          if (feature) {
+            onFeatureClickRef.current?.(feature)
+          }
+        }
+      })
 
       if (drawingEnabled) {
         const MapboxDraw = (await import('@mapbox/mapbox-gl-draw')).default
@@ -205,11 +229,10 @@ export function useMap({
       }
 
       map.on('load', () => {
-        console.log('[useMap] map loaded, adding', features.length, 'features')
         setIsLoaded(true)
 
         features.forEach((feature) => {
-          addFeatureLayerToMap(map, feature, onFeatureClick)
+          addFeatureLayerToMap(map, feature, layerFeatureMapRef.current)
         })
       })
 
@@ -228,6 +251,7 @@ export function useMap({
       map?.remove()
       mapRef.current = null
       drawRef.current = null
+      layerFeatureMapRef.current.clear()
     }
   }, []) // Empty deps — map initialized once on mount
 
@@ -302,14 +326,12 @@ export function useMap({
   )
 
   // Add a single feature layer after map load (used for dynamically-drawn features).
-  // Does not depend on isLoaded — callers only invoke this after user interaction,
-  // which can only happen once the map is visible and loaded.
   const addFeatureLayer = useCallback(
     (feature: Feature) => {
       if (!mapRef.current) return
-      addFeatureLayerToMap(mapRef.current, feature, onFeatureClick)
+      addFeatureLayerToMap(mapRef.current, feature, layerFeatureMapRef.current)
     },
-    [onFeatureClick]
+    [] // layerFeatureMapRef is a stable ref; onFeatureClick now goes through onFeatureClickRef
   )
 
   // Remove a feature's layers and source from the map (called after deletion)
@@ -320,6 +342,8 @@ export function useMap({
       const sourceId = `feature-source-${featureId}`
       const layerId = `feature-layer-${featureId}`
       const fillLayerId = `${layerId}-fill`
+      layerFeatureMapRef.current.delete(layerId)
+      layerFeatureMapRef.current.delete(fillLayerId)
       if (map.getLayer(fillLayerId)) map.removeLayer(fillLayerId)
       if (map.getLayer(layerId)) map.removeLayer(layerId)
       if (map.getSource(sourceId)) map.removeSource(sourceId)

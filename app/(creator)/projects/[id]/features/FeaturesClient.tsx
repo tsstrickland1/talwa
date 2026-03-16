@@ -48,7 +48,6 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
   }, [])
 
   const handleDrawSave = useCallback((feature: Feature) => {
-    console.log('[FeaturesClient] handleDrawSave', feature.id, 'cancelDrawRef:', !!cancelDrawRef.current, 'addLayerRef:', !!addFeatureLayerRef.current)
     cancelDrawRef.current?.()           // clear draw state so MapboxDraw won't intercept clicks
     setFeatures((prev) => [...prev, feature])
     addFeatureLayerRef.current?.(feature)
@@ -63,7 +62,6 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
   // ── Feature click (from map or list) ──────────────────────────────────────
 
   const handleFeatureClick = useCallback((feature: Feature) => {
-    console.log('[FeaturesClient] handleFeatureClick called', feature.id, feature.name)
     setSelectedFeature(feature)
     setIsEditing(false)
     setEditingGeometry(null)
