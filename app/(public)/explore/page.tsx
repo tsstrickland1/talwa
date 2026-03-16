@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Search, Map as MapIcon, List } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { ProjectCard } from '@/components/cards/ProjectCard'
@@ -14,11 +14,8 @@ export default function ExplorePage() {
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<string[]>([])
   const [mobileView, setMobileView] = useState<'map' | 'list'>('map')
   const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null)
-  const [geocodedMarkers, setGeocodedMarkers] = useState<Map<string, [number, number]>>(new Map())
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? ''
-  const geocodeQueueRef = useRef<Set<string>>(new Set())
 
-  // Fetch projects
   useEffect(() => {
     const supabase = createClient()
     supabase
@@ -30,51 +27,13 @@ export default function ExplorePage() {
       .then(({ data }) => setProjects((data ?? []) as Project[]))
   }, [])
 
-  // Geocode project locations via Mapbox Geocoding API
-  useEffect(() => {
-    if (!mapboxToken || projects.length === 0) return
-
-    const toGeocode = projects.filter(
-      (p) => p.location && !geocodeQueueRef.current.has(p.id)
-    )
-    if (toGeocode.length === 0) return
-
-    toGeocode.forEach((p) => geocodeQueueRef.current.add(p.id))
-
-    Promise.all(
-      toGeocode.map(async (p) => {
-        try {
-          const encoded = encodeURIComponent(p.location!)
-          const res = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encoded}.json?access_token=${mapboxToken}&limit=1&types=place,locality,neighborhood,address`
-          )
-          const json = await res.json()
-          if (json.features?.length > 0) {
-            const [lng, lat] = json.features[0].center as [number, number]
-            return { id: p.id, coords: [lng, lat] as [number, number] }
-          }
-        } catch {
-          // ignore geocode failures
-        }
-        return null
-      })
-    ).then((results) => {
-      const updates = new Map(geocodedMarkers)
-      results.forEach((r) => {
-        if (r) updates.set(r.id, r.coords)
-      })
-      setGeocodedMarkers(updates)
-    })
-  }, [projects, mapboxToken]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Extract neighborhood = first comma-delimited segment of project.location
-  // e.g. "East Hill, Pensacola, FL" → "East Hill"
+  // Neighborhood pills: distinct non-null neighborhood values from the DB
   const neighborhoods = useMemo(() => {
     const seen = new Set<string>()
     const result: string[] = []
     for (const p of projects) {
-      if (p.location) {
-        const hood = p.location.split(',')[0].trim()
+      if (p.neighborhood) {
+        const hood = p.neighborhood.trim()
         if (hood && !seen.has(hood)) {
           seen.add(hood)
           result.push(hood)
@@ -92,30 +51,28 @@ export default function ExplorePage() {
         (p) =>
           p.name.toLowerCase().includes(q) ||
           p.short_description?.toLowerCase().includes(q) ||
-          p.location?.toLowerCase().includes(q)
+          p.location?.toLowerCase().includes(q) ||
+          p.neighborhood?.toLowerCase().includes(q)
       )
     }
     if (selectedNeighborhoods.length > 0) {
-      list = list.filter((p) => {
-        const hood = p.location?.split(',')[0].trim() ?? ''
-        return selectedNeighborhoods.some(
-          (n) => n.toLowerCase() === hood.toLowerCase()
-        )
-      })
+      list = list.filter((p) =>
+        p.neighborhood
+          ? selectedNeighborhoods.some(
+              (n) => n.toLowerCase() === p.neighborhood!.toLowerCase()
+            )
+          : false
+      )
     }
     return list
   }, [projects, search, selectedNeighborhoods])
 
-  // Build marker array for only the filtered, geocoded projects
+  // Build marker array from filtered projects that have coordinates in the DB
   const visibleMarkers = useMemo<ProjectMarker[]>(() => {
     return filteredProjects
-      .filter((p) => geocodedMarkers.has(p.id))
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        coords: geocodedMarkers.get(p.id)!,
-      }))
-  }, [filteredProjects, geocodedMarkers])
+      .filter((p) => p.lat != null && p.lng != null)
+      .map((p) => ({ id: p.id, name: p.name, coords: [p.lng!, p.lat!] }))
+  }, [filteredProjects])
 
   function toggleNeighborhood(label: string) {
     setSelectedNeighborhoods((prev) =>
@@ -126,31 +83,42 @@ export default function ExplorePage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* ── Hero ──────────────────────────────────────────────── */}
-      <section className="w-full bg-talwa-olive-light py-16 px-4 shrink-0">
+      {/* bg-talwa-olive-light via explicit hex in case Tailwind class isn't yet compiled */}
+      <section
+        className="w-full py-16 px-4 shrink-0"
+        style={{ backgroundColor: '#DBD894' }}
+      >
         <div className="mx-auto max-w-3xl flex flex-col items-center text-center gap-5">
-          <h1 className="font-heading text-4xl md:text-5xl font-bold text-talwa-navy leading-tight">
+          <h1
+            className="font-heading text-4xl md:text-5xl font-bold leading-tight"
+            style={{ color: '#031D25' }}
+          >
             Reimagining shared spaces. Together.
           </h1>
-          <p className="text-base text-talwa-navy/70 max-w-xl">
+          <p className="text-base max-w-xl" style={{ color: 'rgba(3,29,37,0.7)' }}>
             Browse placemaking initiatives, urban planning projects and
             community-driven spaces in your city.
           </p>
 
           {/* Search */}
           <div className="w-full max-w-xl">
-            <div className="flex items-center gap-2 bg-white border border-talwa-navy/20 rounded-full px-4 py-3 shadow-sm">
-              <Search className="h-4 w-4 text-talwa-navy/40 shrink-0" />
+            <div
+              className="flex items-center gap-2 rounded-full px-4 py-3 shadow-sm"
+              style={{ backgroundColor: '#fff', border: '1px solid rgba(3,29,37,0.18)' }}
+            >
+              <Search className="h-4 w-4 shrink-0" style={{ color: 'rgba(3,29,37,0.4)' }} />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search projects by name or neighborhood…"
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-talwa-navy/40 text-talwa-navy"
+                className="flex-1 bg-transparent text-sm outline-none"
+                style={{ color: '#031D25' }}
               />
             </div>
           </div>
 
-          {/* Neighborhood filter pills */}
+          {/* Neighborhood filter pills — derived from project.neighborhood in DB */}
           {neighborhoods.length > 0 && (
             <div className="flex flex-wrap justify-center gap-2">
               {neighborhoods.map((label) => {
@@ -159,12 +127,12 @@ export default function ExplorePage() {
                   <button
                     key={label}
                     onClick={() => toggleNeighborhood(label)}
+                    className="rounded-full border px-4 py-1.5 text-sm font-medium transition-all hover:opacity-80"
                     style={
                       active
-                        ? { background: '#031D25', color: '#FAFAEF', borderColor: '#031D25' }
-                        : { background: 'transparent', color: '#031D25', borderColor: '#031D25' }
+                        ? { backgroundColor: '#031D25', color: '#FAFAEF', borderColor: '#031D25' }
+                        : { backgroundColor: 'transparent', color: '#031D25', borderColor: '#031D25' }
                     }
-                    className="rounded-full border px-4 py-1.5 text-sm font-medium transition-all hover:opacity-80"
                   >
                     {label}
                   </button>
@@ -176,14 +144,18 @@ export default function ExplorePage() {
       </section>
 
       {/* Mobile view toggle */}
-      <div className="md:hidden flex items-center justify-end gap-2 px-4 py-2 bg-talwa-cream border-b border-border shrink-0">
+      <div
+        className="md:hidden flex items-center justify-end gap-2 px-4 py-2 border-b border-border shrink-0"
+        style={{ backgroundColor: '#FAFAEF' }}
+      >
         <button
           onClick={() => setMobileView('map')}
           className={
             mobileView === 'map'
-              ? 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium bg-talwa-teal text-white'
-              : 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border border-border text-talwa-navy hover:bg-accent'
+              ? 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-white'
+              : 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border border-border hover:bg-accent'
           }
+          style={mobileView === 'map' ? { backgroundColor: '#0A4F66' } : { color: '#031D25' }}
         >
           <MapIcon className="w-3.5 h-3.5" />
           Map
@@ -192,28 +164,33 @@ export default function ExplorePage() {
           onClick={() => setMobileView('list')}
           className={
             mobileView === 'list'
-              ? 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium bg-talwa-teal text-white'
-              : 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border border-border text-talwa-navy hover:bg-accent'
+              ? 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-white'
+              : 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border border-border hover:bg-accent'
           }
+          style={mobileView === 'list' ? { backgroundColor: '#0A4F66' } : { color: '#031D25' }}
         >
           <List className="w-3.5 h-3.5" />
           List
         </button>
       </div>
 
-      {/* ── Content: project list + map ────────────────────────── */}
+      {/* ── Content: project list (left) + map (right) ────────── */}
       <div className="flex flex-1 min-h-0">
-        {/* Project list — left half on desktop */}
+        {/* Project list */}
         <div
-          className={`w-full md:w-1/2 overflow-y-auto bg-talwa-cream ${
+          className={`w-full md:w-1/2 overflow-y-auto ${
             mobileView === 'map' ? 'hidden md:flex md:flex-col' : 'flex flex-col'
           }`}
+          style={{ backgroundColor: '#FAFAEF' }}
         >
           <div className="px-6 md:px-8 py-6">
-            <h2 className="font-heading text-xl font-bold text-talwa-navy mb-4">
+            <h2
+              className="font-heading text-xl font-bold mb-4"
+              style={{ color: '#031D25' }}
+            >
               Nearby Projects
               {filteredProjects.length > 0 && (
-                <span className="ml-2 text-base font-normal text-talwa-navy/50">
+                <span className="ml-2 text-base font-normal" style={{ color: 'rgba(3,29,37,0.45)' }}>
                   ({filteredProjects.length})
                 </span>
               )}
@@ -244,7 +221,7 @@ export default function ExplorePage() {
           </div>
         </div>
 
-        {/* Map — right half on desktop */}
+        {/* Map */}
         <div
           className={`w-full md:w-1/2 h-full ${
             mobileView === 'list' ? 'hidden md:block' : 'block'

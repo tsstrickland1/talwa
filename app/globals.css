@@ -1,7 +1,9 @@
-@import "tailwindcss";
-
-/* Google Fonts */
+/* Google Fonts must precede @import "tailwindcss" to satisfy CSS @import ordering rules */
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap');
+
+@import "tailwindcss";
+/* Tell Tailwind v4 PostCSS to use the v3-style config so custom talwa colors are generated */
+@config "../tailwind.config.ts";
 
 @layer base {
   :root {
