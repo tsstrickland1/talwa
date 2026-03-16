@@ -230,9 +230,12 @@ export default function ExplorePage() {
             </div>
           </div>
 
-          {/* Map — fills its column; height is inherited from the sticky panel */}
+          {/* Map — h-full gives the column an explicit specified height so that
+               the h-full chain inside ExploreMap resolves correctly. Without this,
+               flex-stretch is implicit and height: 100% on children resolves to 0,
+               causing the minHeight:400px fallback to mismatch the canvas size. */}
           <div
-            className={`w-full md:w-1/2 ${
+            className={`w-full md:w-1/2 h-full ${
               mobileView === 'list' ? 'hidden md:block' : 'block'
             }`}
           >
