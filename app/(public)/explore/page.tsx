@@ -148,97 +148,106 @@ export default function ExplorePage() {
         </div>
       </section>
 
-      {/* Mobile view toggle */}
+      {/* ── Sticky two-column area ────────────────────────────────
+           The entire panel (toggle + list + map) sticks below the nav
+           once the hero scrolls off. Inline style is required because
+           Tailwind's calc() arbitrary values require spaces around the
+           minus operator which Tailwind does not reliably preserve.
+           The list scrolls internally; the map always fills its column. */}
       <div
-        className="md:hidden flex items-center justify-end px-4 py-2 border-b border-border shrink-0"
-        style={{ backgroundColor: '#FAFAEF' }}
+        className="sticky top-14 flex flex-col overflow-hidden"
+        style={{ height: 'calc(100vh - 3.5rem)' }}
       >
-        <div className="flex rounded-md border border-border overflow-hidden shadow-sm">
-          <button
-            onClick={() => setMobileView('list')}
-            className="p-2 transition-colors"
-            style={mobileView === 'list' ? { backgroundColor: '#0A4F66', color: '#FAFAEF' } : { color: '#031D25' }}
-            aria-label="List view"
-          >
-            <List className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setMobileView('map')}
-            className="p-2 border-l border-border transition-colors"
-            style={mobileView === 'map' ? { backgroundColor: '#0A4F66', color: '#FAFAEF' } : { color: '#031D25' }}
-            aria-label="Map view"
-          >
-            <MapIcon className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* ── Content: project list (left) + map (right) ────────── */}
-      <div className="flex">
-        {/* Project list */}
+        {/* Mobile view toggle — lives inside the sticky panel */}
         <div
-          className={`w-full md:w-1/2 ${
-            mobileView === 'map' ? 'hidden md:flex md:flex-col' : 'flex flex-col'
-          }`}
+          className="md:hidden flex items-center justify-end px-4 py-2 border-b border-border shrink-0"
           style={{ backgroundColor: '#FAFAEF' }}
         >
-          <div className="px-6 md:px-8 py-6">
-            <h2
-              className="font-heading text-xl font-bold mb-4"
-              style={{ color: '#031D25' }}
+          <div className="flex rounded-md border border-border overflow-hidden shadow-sm">
+            <button
+              onClick={() => setMobileView('list')}
+              className="p-2 transition-colors"
+              style={mobileView === 'list' ? { backgroundColor: '#0A4F66', color: '#FAFAEF' } : { color: '#031D25' }}
+              aria-label="List view"
             >
-              Nearby Projects
-              {filteredProjects.length > 0 && (
-                <span className="ml-2 text-base font-normal" style={{ color: 'rgba(3,29,37,0.45)' }}>
-                  ({filteredProjects.length})
-                </span>
-              )}
-            </h2>
-
-            {filteredProjects.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 text-center">
-                <p className="text-sm text-muted-foreground max-w-sm">
-                  {projects.length === 0
-                    ? 'Check back soon — projects will appear here when creators make them public.'
-                    : 'No projects match your search. Try adjusting your filters.'}
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {filteredProjects.map((project) => (
-                  <div
-                    key={project.id}
-                    id={`project-card-${project.id}`}
-                    onMouseEnter={() => setHoveredProjectId(project.id)}
-                    onMouseLeave={() => setHoveredProjectId(null)}
-                  >
-                    <ProjectCard project={project} />
-                  </div>
-                ))}
-              </div>
-            )}
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setMobileView('map')}
+              className="p-2 border-l border-border transition-colors"
+              style={mobileView === 'map' ? { backgroundColor: '#0A4F66', color: '#FAFAEF' } : { color: '#031D25' }}
+              aria-label="Map view"
+            >
+              <MapIcon className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        {/* Map — sticky below the nav on desktop so it stays in view as the list scrolls;
-             on mobile it fills the remaining viewport when toggled into map view.
-             top-14 = 56px nav height; h-[calc(100vh-3.5rem)] fills the rest of the screen */}
-        <div
-          className={`sticky top-14 h-[calc(100vh-3.5rem)] w-full md:w-1/2 ${
-            mobileView === 'list' ? 'hidden md:block' : 'block'
-          }`}
-        >
-          <ExploreMap
-            mapboxToken={mapboxToken}
-            projects={visibleMarkers}
-            hoveredProjectId={hoveredProjectId}
-            onProjectClick={(id) => {
-              const el = document.getElementById(`project-card-${id}`)
-              el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-              setHoveredProjectId(id)
-              setTimeout(() => setHoveredProjectId(null), 1500)
-            }}
-          />
+        {/* Columns — fill the remaining height of the sticky panel */}
+        <div className="flex flex-1 min-h-0">
+          {/* Project list — scrolls internally */}
+          <div
+            className={`w-full md:w-1/2 overflow-y-auto ${
+              mobileView === 'map' ? 'hidden md:flex md:flex-col' : 'flex flex-col'
+            }`}
+            style={{ backgroundColor: '#FAFAEF' }}
+          >
+            <div className="px-6 md:px-8 py-6">
+              <h2
+                className="font-heading text-xl font-bold mb-4"
+                style={{ color: '#031D25' }}
+              >
+                Nearby Projects
+                {filteredProjects.length > 0 && (
+                  <span className="ml-2 text-base font-normal" style={{ color: 'rgba(3,29,37,0.45)' }}>
+                    ({filteredProjects.length})
+                  </span>
+                )}
+              </h2>
+
+              {filteredProjects.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-24 text-center">
+                  <p className="text-sm text-muted-foreground max-w-sm">
+                    {projects.length === 0
+                      ? 'Check back soon — projects will appear here when creators make them public.'
+                      : 'No projects match your search. Try adjusting your filters.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {filteredProjects.map((project) => (
+                    <div
+                      key={project.id}
+                      id={`project-card-${project.id}`}
+                      onMouseEnter={() => setHoveredProjectId(project.id)}
+                      onMouseLeave={() => setHoveredProjectId(null)}
+                    >
+                      <ProjectCard project={project} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Map — fills its column; height is inherited from the sticky panel */}
+          <div
+            className={`w-full md:w-1/2 ${
+              mobileView === 'list' ? 'hidden md:block' : 'block'
+            }`}
+          >
+            <ExploreMap
+              mapboxToken={mapboxToken}
+              projects={visibleMarkers}
+              hoveredProjectId={hoveredProjectId}
+              onProjectClick={(id) => {
+                const el = document.getElementById(`project-card-${id}`)
+                el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                setHoveredProjectId(id)
+                setTimeout(() => setHoveredProjectId(null), 1500)
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>
