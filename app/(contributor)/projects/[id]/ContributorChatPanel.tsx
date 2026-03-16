@@ -18,6 +18,11 @@ import {
   X,
   Share2,
   Info,
+  Menu,
+  Map as MapIcon,
+  MessageSquare,
+  Copy,
+  Check,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -53,6 +58,11 @@ export function ContributorChatPanel({
   const router = useRouter()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
+  const [hoveringMark, setHoveringMark] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mobileChatView, setMobileChatView] = useState<'chat' | 'map'>('chat')
+  const [chatView, setChatView] = useState<'chat' | 'share' | 'about'>('chat')
+  const [copied, setCopied] = useState(false)
   const [showAuthGate, setShowAuthGate] = useState(false)
 
   const isGuest = conversationId === null
@@ -117,51 +127,141 @@ export function ContributorChatPanel({
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`
   }, [])
 
+  function handleCopyLink() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
   const center: [number, number] = [-73.9857, 40.7484]
   const hasMessages = messages.length > 0
 
+  // Shared nav items used in both desktop sidebar and mobile drawer
+  const navItems = (onClick?: () => void) => (
+    <nav className="flex flex-col gap-1 pt-2 px-1">
+      <Link
+        href="/explore"
+        onClick={onClick}
+        className={cn(
+          'flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium text-muted-foreground hover:text-talwa-teal hover:bg-accent transition-colors',
+          sidebarExpanded ? 'w-full' : 'w-8 justify-center'
+        )}
+        title="Explore"
+      >
+        <Compass className="w-5 h-5 shrink-0" />
+        {(sidebarExpanded || onClick) && <span className="truncate">Explore</span>}
+      </Link>
+    </nav>
+  )
+
   return (
     <div className="flex h-screen bg-background overflow-hidden relative">
-      {/* Left sidebar — collapsed icon strip */}
+      {/* ── Desktop sidebar — absolute overlay (z-30 over map) ── */}
       <div
         className={cn(
-          'flex flex-col shrink-0 border-r border-border bg-background transition-all duration-200 overflow-hidden z-20',
+          'hidden md:flex flex-col absolute left-0 top-0 h-full z-30 border-r border-border bg-background transition-all duration-200',
           sidebarExpanded ? 'w-52' : 'w-10'
         )}
       >
-        {/* Brand mark / toggle button */}
-        <button
-          onClick={() => setSidebarExpanded((v: boolean) => !v)}
-          className="flex items-center justify-center w-10 h-10 shrink-0 hover:bg-accent transition-colors"
-          aria-label={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
-        >
-          {sidebarExpanded ? (
-            <X className="w-4 h-4 text-talwa-navy" />
-          ) : (
-            <PanelLeft className="w-5 h-5 text-talwa-teal" />
-          )}
-        </button>
-
-        {/* Nav items */}
-        <nav className="flex flex-col gap-1 pt-2 px-1">
-          <Link
-            href="/explore"
-            className={cn(
-              'flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium text-muted-foreground hover:text-talwa-teal hover:bg-accent transition-colors',
-              sidebarExpanded ? 'w-full' : 'w-8 justify-center'
-            )}
-            title="Explore"
+        {/* Toggle area */}
+        {sidebarExpanded ? (
+          /* Expanded: brand mark left + collapse button right */
+          <div className="flex items-center h-10 px-1 shrink-0">
+            <Image
+              src="/brand/brand-mark.png"
+              alt="Talwa"
+              width={22}
+              height={22}
+              className="w-[22px] h-[22px] object-contain ml-1"
+            />
+            <button
+              onClick={() => setSidebarExpanded(false)}
+              className="ml-auto p-1.5 rounded hover:bg-accent transition-colors"
+              aria-label="Collapse sidebar"
+            >
+              <PanelLeft className="w-4 h-4 text-talwa-navy" />
+            </button>
+          </div>
+        ) : (
+          /* Collapsed: full-area button — brand mark default, PanelLeft on hover */
+          <button
+            onClick={() => setSidebarExpanded(true)}
+            onMouseEnter={() => setHoveringMark(true)}
+            onMouseLeave={() => setHoveringMark(false)}
+            className="flex items-center justify-center w-10 h-10 shrink-0 hover:bg-accent transition-colors"
+            aria-label="Expand sidebar"
           >
-            <Compass className="w-5 h-5 shrink-0" />
-            {sidebarExpanded && <span className="truncate">Explore</span>}
-          </Link>
-        </nav>
+            {hoveringMark ? (
+              <PanelLeft className="w-5 h-5 text-talwa-teal" />
+            ) : (
+              <Image
+                src="/brand/brand-mark.png"
+                alt="Talwa"
+                width={22}
+                height={22}
+                className="w-[22px] h-[22px] object-contain"
+              />
+            )}
+          </button>
+        )}
+
+        {navItems()}
       </div>
 
-      {/* Main content area */}
-      <div className="flex flex-col flex-1 min-w-0">
+      {/* ── Mobile drawer overlay (z-50) ── */}
+      {mobileMenuOpen && (
+        <div
+          className="md:hidden absolute inset-0 z-50 bg-talwa-navy/40"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div
+            className="absolute left-0 top-0 h-full w-56 bg-background border-r border-border flex flex-col shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center h-10 px-3 border-b border-border shrink-0">
+              <Image
+                src="/brand/brand-mark.png"
+                alt="Talwa"
+                width={22}
+                height={22}
+                className="w-[22px] h-[22px] object-contain"
+              />
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="ml-auto p-1 rounded hover:bg-accent transition-colors"
+                aria-label="Close menu"
+              >
+                <X className="w-4 h-4 text-talwa-navy" />
+              </button>
+            </div>
+            <nav className="flex flex-col gap-1 pt-2 px-1">
+              <Link
+                href="/explore"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium text-muted-foreground hover:text-talwa-teal hover:bg-accent transition-colors"
+              >
+                <Compass className="w-5 h-5 shrink-0" />
+                <span>Explore</span>
+              </Link>
+            </nav>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main content — pl-10 on desktop leaves room for collapsed sidebar strip ── */}
+      <div className="flex flex-col flex-1 min-w-0 md:pl-10">
         {/* Header */}
         <div className="flex items-center h-12 px-4 border-b border-border shrink-0 bg-background">
+          {/* Mobile: hamburger */}
+          <button
+            className="md:hidden mr-2 text-muted-foreground hover:text-talwa-navy transition-colors"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
           <button
             onClick={() => router.back()}
             className="mr-3 text-talwa-navy hover:text-talwa-teal transition-colors"
@@ -183,17 +283,18 @@ export function ContributorChatPanel({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
               <DropdownMenuItem
-                onClick={() => navigator.clipboard.writeText(window.location.href)}
+                onClick={() => setChatView('share')}
                 className="flex items-center gap-2"
               >
                 <Share2 className="w-4 h-4" />
                 Share
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href={`/projects/${project.id}/about`} className="flex items-center gap-2">
-                  <Info className="w-4 h-4" />
-                  About
-                </Link>
+              <DropdownMenuItem
+                onClick={() => setChatView('about')}
+                className="flex items-center gap-2"
+              >
+                <Info className="w-4 h-4" />
+                About
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -201,8 +302,13 @@ export function ContributorChatPanel({
 
         {/* Map + Chat row */}
         <div className="flex flex-1 min-h-0">
-          {/* Map panel */}
-          <div className="hidden md:block w-[53%] shrink-0 border-r border-border">
+          {/* Map panel — hidden on mobile unless mobileChatView === 'map' */}
+          <div
+            className={cn(
+              'relative w-full md:w-[53%] shrink-0 border-r border-border',
+              mobileChatView === 'map' ? 'block' : 'hidden md:block'
+            )}
+          >
             <ContributorMap
               mapboxToken={mapboxToken}
               center={center}
@@ -216,104 +322,224 @@ export function ContributorChatPanel({
               }}
               className="h-full"
             />
+            {/* Mobile: back to chat button overlaid on map */}
+            {mobileChatView === 'map' && (
+              <button
+                className="md:hidden absolute top-3 right-3 z-10 bg-background/90 backdrop-blur-sm border border-border rounded-full px-3 py-1.5 text-xs font-medium text-talwa-navy shadow-sm flex items-center gap-1.5 hover:bg-background transition-colors"
+                onClick={() => setMobileChatView('chat')}
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                Chat
+              </button>
+            )}
           </div>
 
-          {/* Chat panel */}
-          <div className="flex flex-col flex-1 min-w-0 bg-talwa-cream">
-            {/* History icon */}
-            <div className="flex justify-end px-4 pt-3 pb-1 shrink-0">
-              <button
-                className="text-muted-foreground/50 hover:text-talwa-navy transition-colors"
-                aria-label="Conversation history"
-              >
-                <Clock className="w-4 h-4" />
-              </button>
-            </div>
-
-            {!historyLoaded ? (
-              <div className="flex-1 flex items-center justify-center">
-                <span className="text-sm text-muted-foreground">Loading conversation…</span>
+          {/* Chat / Share / About panel */}
+          <div
+            className={cn(
+              'flex flex-col flex-1 min-w-0',
+              mobileChatView === 'map' ? 'hidden md:flex' : 'flex'
+            )}
+          >
+            {chatView === 'share' ? (
+              /* ── Share pane ── */
+              <div className="flex flex-col flex-1 bg-talwa-cream">
+                <div className="flex items-center gap-3 px-4 h-11 border-b border-border shrink-0 bg-background">
+                  <button
+                    onClick={() => setChatView('chat')}
+                    className="text-muted-foreground hover:text-talwa-navy transition-colors"
+                    aria-label="Back to chat"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <span className="text-sm font-medium text-talwa-navy">Share</span>
+                </div>
+                <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col gap-5">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                      Project link
+                    </p>
+                    <div className="flex items-center gap-2 bg-background rounded-lg border border-border px-3 py-2.5">
+                      <span className="text-sm text-talwa-navy flex-1 truncate">
+                        {typeof window !== 'undefined' ? window.location.href : ''}
+                      </span>
+                      <button
+                        onClick={handleCopyLink}
+                        className="shrink-0 flex items-center gap-1.5 text-xs font-medium text-talwa-teal hover:text-talwa-teal/80 transition-colors"
+                        aria-label="Copy link"
+                      >
+                        {copied ? (
+                          <><Check className="w-3.5 h-3.5" />Copied</>
+                        ) : (
+                          <><Copy className="w-3.5 h-3.5" />Copy</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                      Share message
+                    </p>
+                    <div className="bg-background rounded-lg border border-border px-3 py-2.5">
+                      <p className="text-sm text-talwa-navy leading-relaxed">
+                        {`Check out "${project.name}" on Talwa — a community engagement project near ${project.location}. Share your perspective and help shape the design.`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
-            ) : !hasMessages ? (
-              /* Topic selection empty state */
-              <div className="flex-1 overflow-y-auto px-6 py-2">
-                <h2 className="font-heading text-xl font-semibold text-talwa-navy mb-5">
-                  What would you like to discuss?
-                </h2>
-                <div className="flex flex-col gap-4">
-                  {project.dialogue_framework.map((question) => (
-                    <button
-                      key={question}
-                      onClick={() => guardedAppend({ role: 'user', content: question })}
-                      className="flex items-center gap-3 text-left text-talwa-navy hover:text-talwa-teal transition-colors group"
+            ) : chatView === 'about' ? (
+              /* ── About pane ── */
+              <div className="flex flex-col flex-1 bg-talwa-cream">
+                <div className="flex items-center gap-3 px-4 h-11 border-b border-border shrink-0 bg-background">
+                  <button
+                    onClick={() => setChatView('chat')}
+                    className="text-muted-foreground hover:text-talwa-navy transition-colors"
+                    aria-label="Back to chat"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <span className="text-sm font-medium text-talwa-navy">About</span>
+                </div>
+                <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4">
+                  <div>
+                    <h2 className="font-heading text-xl font-bold text-talwa-navy leading-tight">
+                      {project.name}
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1">{project.location}</p>
+                  </div>
+                  {project.status && (
+                    <span
+                      className="inline-block rounded-full px-3 py-1 text-xs font-medium capitalize"
+                      style={{ backgroundColor: '#DBD894', color: '#031D25' }}
                     >
-                      <HelpCircle className="w-5 h-5 text-muted-foreground/50 shrink-0 group-hover:text-talwa-teal/60 transition-colors" />
-                      <span className="text-sm leading-snug">{question}</span>
-                    </button>
-                  ))}
+                      {project.status}
+                    </span>
+                  )}
+                  <p className="text-sm text-talwa-navy leading-relaxed">
+                    {project.long_description || project.short_description}
+                  </p>
                 </div>
               </div>
             ) : (
-              /* Message list */
-              <ChatContainer
-                messages={messages}
-                input={input}
-                handleInputChange={handleInputChange}
-                handleSubmit={handleSubmit}
-                isLoading={isLoading}
-                placeholder="Ask me something …"
-                className="flex-1 min-h-0"
-                hideInput
-                bottomSlot={
-                  surfacedContent?.type === 'theme' ? (
-                    <ThemeSurface theme={null} onDismiss={clearSurface} />
-                  ) : surfacedContent?.type === 'data_point' ? (
-                    <DataPointSurface dataPoint={null} onDismiss={clearSurface} />
-                  ) : null
-                }
-              />
-            )}
-
-            {/* Chat input — always shown once history is loaded */}
-            {historyLoaded && (
-              <div className="shrink-0 border-t border-border bg-talwa-cream px-4 py-3">
-                {isGuest ? (
-                  /* Guest CTA — clicking opens auth gate */
+              /* ── Chat pane ── */
+              <div className="flex flex-col flex-1 min-h-0 bg-talwa-cream">
+                {/* History icon */}
+                <div className="flex justify-end px-4 pt-3 pb-1 shrink-0">
                   <button
-                    onClick={() => setShowAuthGate(true)}
-                    className="w-full flex items-center gap-2 bg-background rounded-full border border-input px-3 py-2 text-left hover:border-talwa-teal transition-colors"
+                    className="text-muted-foreground/50 hover:text-talwa-navy transition-colors"
+                    aria-label="Conversation history"
                   >
-                    <PlusCircle className="w-5 h-5 text-muted-foreground/50 shrink-0" />
-                    <span className="flex-1 text-sm text-muted-foreground">
-                      Join the conversation…
-                    </span>
+                    <Clock className="w-4 h-4" />
                   </button>
+                </div>
+
+                {!historyLoaded ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <span className="text-sm text-muted-foreground">Loading conversation…</span>
+                  </div>
+                ) : !hasMessages ? (
+                  /* Topic selection empty state */
+                  <div className="flex-1 overflow-y-auto px-6 py-2">
+                    <h2 className="font-heading text-xl font-semibold text-talwa-navy mb-5">
+                      What would you like to discuss?
+                    </h2>
+                    <div className="flex flex-col gap-4">
+                      {project.dialogue_framework.map((question) => (
+                        <button
+                          key={question}
+                          onClick={() => guardedAppend({ role: 'user', content: question })}
+                          className="flex items-center gap-3 text-left text-talwa-navy hover:text-talwa-teal transition-colors group"
+                        >
+                          <HelpCircle className="w-5 h-5 text-muted-foreground/50 shrink-0 group-hover:text-talwa-teal/60 transition-colors" />
+                          <span className="text-sm leading-snug">{question}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ) : (
-                  <form
-                    onSubmit={guardedSubmit}
-                    className="flex items-center gap-2 bg-background rounded-full border border-input px-3 py-2"
-                  >
-                    <PlusCircle className="w-5 h-5 text-muted-foreground/50 shrink-0" />
-                    <textarea
-                      ref={textareaRef}
-                      value={input}
-                      onChange={handleInputChange}
-                      onKeyDown={handleKeyDown}
-                      onInput={handleTextareaInput}
-                      placeholder="Ask me something …"
-                      disabled={isLoading}
-                      rows={1}
-                      className="flex-1 bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground text-talwa-navy min-h-[20px] max-h-28 overflow-y-auto"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isLoading || !input.trim()}
-                      className="w-8 h-8 rounded-full bg-talwa-teal flex items-center justify-center text-white disabled:opacity-40 shrink-0 transition-opacity"
-                      aria-label="Send"
-                    >
-                      <ArrowUp className="w-4 h-4" />
-                    </button>
-                  </form>
+                  /* Message list */
+                  <ChatContainer
+                    messages={messages}
+                    input={input}
+                    handleInputChange={handleInputChange}
+                    handleSubmit={handleSubmit}
+                    isLoading={isLoading}
+                    placeholder="Ask me something …"
+                    className="flex-1 min-h-0"
+                    hideInput
+                    bottomSlot={
+                      surfacedContent?.type === 'theme' ? (
+                        <ThemeSurface theme={null} onDismiss={clearSurface} />
+                      ) : surfacedContent?.type === 'data_point' ? (
+                        <DataPointSurface dataPoint={null} onDismiss={clearSurface} />
+                      ) : null
+                    }
+                  />
+                )}
+
+                {/* Chat input — always shown once history is loaded */}
+                {historyLoaded && (
+                  <div className="shrink-0 border-t border-border bg-talwa-cream px-4 py-3">
+                    {isGuest ? (
+                      /* Guest CTA — clicking opens auth gate */
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowAuthGate(true)}
+                          className="flex-1 flex items-center gap-2 bg-background rounded-full border border-input px-3 py-2 text-left hover:border-talwa-teal transition-colors"
+                        >
+                          <PlusCircle className="w-5 h-5 text-muted-foreground/50 shrink-0" />
+                          <span className="flex-1 text-sm text-muted-foreground">
+                            Join the conversation…
+                          </span>
+                        </button>
+                        {/* Mobile: map toggle */}
+                        <button
+                          className="md:hidden w-9 h-9 flex items-center justify-center rounded-full border border-input bg-background text-muted-foreground hover:text-talwa-teal transition-colors shrink-0"
+                          onClick={() => setMobileChatView('map')}
+                          aria-label="Show map"
+                        >
+                          <MapIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <form
+                          onSubmit={guardedSubmit}
+                          className="flex-1 flex items-center gap-2 bg-background rounded-full border border-input px-3 py-2"
+                        >
+                          <PlusCircle className="w-5 h-5 text-muted-foreground/50 shrink-0" />
+                          <textarea
+                            ref={textareaRef}
+                            value={input}
+                            onChange={handleInputChange}
+                            onKeyDown={handleKeyDown}
+                            onInput={handleTextareaInput}
+                            placeholder="Ask me something …"
+                            disabled={isLoading}
+                            rows={1}
+                            className="flex-1 bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground text-talwa-navy min-h-[20px] max-h-28 overflow-y-auto"
+                          />
+                          <button
+                            type="submit"
+                            disabled={isLoading || !input.trim()}
+                            className="w-8 h-8 rounded-full bg-talwa-teal flex items-center justify-center text-white disabled:opacity-40 shrink-0 transition-opacity"
+                            aria-label="Send"
+                          >
+                            <ArrowUp className="w-4 h-4" />
+                          </button>
+                        </form>
+                        {/* Mobile: map toggle */}
+                        <button
+                          className="md:hidden w-9 h-9 flex items-center justify-center rounded-full border border-input bg-background text-muted-foreground hover:text-talwa-teal transition-colors shrink-0"
+                          onClick={() => setMobileChatView('map')}
+                          aria-label="Show map"
+                        >
+                          <MapIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}

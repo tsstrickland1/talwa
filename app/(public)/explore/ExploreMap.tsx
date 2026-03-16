@@ -64,21 +64,27 @@ export function ExploreMap({
       const map = new mapboxgl.Map({
         container: containerRef.current!,
         style: 'mapbox://styles/mapbox/light-v11',
-        center: [-87.6298, 41.8781],
+        center: [-122.6587, 45.5122], // Portland, OR
         zoom: 11,
       })
 
       mapRef.current = map
 
-      map.on('load', () => {
+      const flushPending = () => {
+        if (mapReadyRef.current) return
         mapReadyRef.current = true
-        // Render any projects that arrived before the map loaded
         if (pendingProjectsRef.current.length > 0) {
           renderMarkers(mapboxgl, map, pendingProjectsRef.current, null, onProjectClick)
           fitBounds(map, pendingProjectsRef.current)
           pendingProjectsRef.current = []
         }
-      })
+      }
+
+      map.on('load', flushPending)
+      // Fallback: 'idle' fires after the map settles even if tiles fail (e.g. invalid token in dev)
+      map.once('idle', flushPending)
+      // Fallback: on error still attempt to render markers so they appear on a degraded map
+      map.on('error', flushPending)
     })
 
     return () => {
