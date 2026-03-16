@@ -68,7 +68,8 @@ BEGIN
   INSERT INTO public.projects (
     name, short_description, long_description,
     status, publicly_visible, location,
-    creator_id, dialogue_framework, contributor_count
+    creator_id, dialogue_framework, contributor_count,
+    lat, lng, neighborhood
   ) VALUES (
     'Eastside Waterfront Park Redesign',
 
@@ -94,14 +95,16 @@ BEGIN
       'What natural or ecological features of the riverbank are most important to you?',
       'What community programming or events would make this park a destination for your neighborhood?'
     ],
-    23
+    23,
+    45.5175, -122.6680, 'Eastside Waterfront'
   ) RETURNING id INTO v_proj1_id;
 
   -- ─── 3. Project 2: Division Street Complete Streets ─────────
   INSERT INTO public.projects (
     name, short_description, long_description,
     status, publicly_visible, location,
-    creator_id, dialogue_framework, contributor_count
+    creator_id, dialogue_framework, contributor_count,
+    lat, lng, neighborhood
   ) VALUES (
     'Division Street Complete Streets',
 
@@ -127,7 +130,8 @@ BEGIN
       'How do you feel proposed street changes might affect local businesses and neighborhood character?',
       'Which intersections or segments feel most dangerous to you, and why?'
     ],
-    41
+    41,
+    45.5043, -122.6370, 'SE Division Street'
   ) RETURNING id INTO v_proj2_id;
 
   -- ─── 4. Features – Project 1 ────────────────────────────────

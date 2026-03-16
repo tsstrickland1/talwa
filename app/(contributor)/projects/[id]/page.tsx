@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ContributorChatPanel } from './ContributorChatPanel'
-import type { Project, Feature } from '@/lib/types'
+import type { Project, Feature, User } from '@/lib/types'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -32,6 +32,12 @@ export default async function ContributorProjectPage({ params }: Props) {
     .select('*')
     .eq('project_id', id)
 
+  const { data: creator } = await admin
+    .from('users')
+    .select('id, name_first, name_last, avatar')
+    .eq('id', project.creator_id)
+    .single()
+
   // If user is not authenticated, render the panel without a conversation
   if (!authUser) {
     return (
@@ -41,6 +47,7 @@ export default async function ContributorProjectPage({ params }: Props) {
           features={(features ?? []) as Feature[]}
           conversationId={null}
           mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
+          creator={(creator ?? null) as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
         />
       </div>
     )
@@ -79,6 +86,7 @@ export default async function ContributorProjectPage({ params }: Props) {
           features={(features ?? []) as Feature[]}
           conversationId={existing.id}
           mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
+          creator={(creator ?? null) as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
         />
       </div>
     )

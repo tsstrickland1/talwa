@@ -1,12 +1,17 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { Search, Map as MapIcon, List } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { ProjectCard } from '@/components/cards/ProjectCard'
-import { ExploreMap } from './ExploreMap'
 import type { ProjectMarker } from './ExploreMap'
 import type { Project } from '@/lib/types'
+
+const ExploreMap = dynamic(
+  () => import('./ExploreMap').then((m) => m.ExploreMap),
+  { ssr: false }
+)
 
 export default function ExplorePage() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -145,33 +150,27 @@ export default function ExplorePage() {
 
       {/* Mobile view toggle */}
       <div
-        className="md:hidden flex items-center justify-end gap-2 px-4 py-2 border-b border-border shrink-0"
+        className="md:hidden flex items-center justify-end px-4 py-2 border-b border-border shrink-0"
         style={{ backgroundColor: '#FAFAEF' }}
       >
-        <button
-          onClick={() => setMobileView('map')}
-          className={
-            mobileView === 'map'
-              ? 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-white'
-              : 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border border-border hover:bg-accent'
-          }
-          style={mobileView === 'map' ? { backgroundColor: '#0A4F66' } : { color: '#031D25' }}
-        >
-          <MapIcon className="w-3.5 h-3.5" />
-          Map
-        </button>
-        <button
-          onClick={() => setMobileView('list')}
-          className={
-            mobileView === 'list'
-              ? 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-white'
-              : 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border border-border hover:bg-accent'
-          }
-          style={mobileView === 'list' ? { backgroundColor: '#0A4F66' } : { color: '#031D25' }}
-        >
-          <List className="w-3.5 h-3.5" />
-          List
-        </button>
+        <div className="flex rounded-md border border-border overflow-hidden shadow-sm">
+          <button
+            onClick={() => setMobileView('list')}
+            className="p-2 transition-colors"
+            style={mobileView === 'list' ? { backgroundColor: '#0A4F66', color: '#FAFAEF' } : { color: '#031D25' }}
+            aria-label="List view"
+          >
+            <List className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setMobileView('map')}
+            className="p-2 border-l border-border transition-colors"
+            style={mobileView === 'map' ? { backgroundColor: '#0A4F66', color: '#FAFAEF' } : { color: '#031D25' }}
+            aria-label="Map view"
+          >
+            <MapIcon className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* ── Content: project list (left) + map (right) ────────── */}
