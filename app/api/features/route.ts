@@ -118,6 +118,7 @@ export async function PATCH(req: Request) {
     name?: string
     type?: FeatureType
     description?: string
+    geojson?: FeatureGeoJSON
   }
 
   const admin = createAdminClient()
@@ -150,6 +151,7 @@ export async function PATCH(req: Request) {
   if (body.name !== undefined) updates.name = body.name
   if (body.type !== undefined) updates.type = body.type
   if (body.description !== undefined) updates.description = body.description
+  if (body.geojson !== undefined) updates.geojson = body.geojson
 
   if (Object.keys(updates).length === 0) {
     return new Response('No fields to update', { status: 400 })

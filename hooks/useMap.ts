@@ -19,6 +19,8 @@ type UseMapOptions = {
   onFeatureClick?: (feature: Feature) => void
   onMapClick?: (location: Location) => void
   onFeatureDraw?: (geojson: FeatureGeoJSON) => void
+  onGeometryUpdate?: (geojson: FeatureGeoJSON) => void
+  onDrawDelete?: () => void
 }
 
 // Adds a single feature layer to an already-loaded map.
@@ -96,16 +98,18 @@ function addFeatureLayerToMap(
       })
     }
 
-    map.on('click', layerId, () => {
-      onFeatureClick?.(feature)
-    })
+    // Register click/cursor on the stroke layer
+    map.on('click', layerId, () => { onFeatureClick?.(feature) })
+    map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer' })
+    map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = '' })
 
-    map.on('mouseenter', layerId, () => {
-      map.getCanvas().style.cursor = 'pointer'
-    })
-    map.on('mouseleave', layerId, () => {
-      map.getCanvas().style.cursor = ''
-    })
+    // For polygons also register on the fill layer so interior clicks work
+    if (geometryType === 'Polygon' || geometryType === 'MultiPolygon') {
+      const fillId = `${layerId}-fill`
+      map.on('click', fillId, () => { onFeatureClick?.(feature) })
+      map.on('mouseenter', fillId, () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', fillId, () => { map.getCanvas().style.cursor = '' })
+    }
   } catch (e) {
     console.error(`Failed to add feature ${feature.id}:`, e)
   }
@@ -120,6 +124,8 @@ export function useMap({
   onFeatureClick,
   onMapClick,
   onFeatureDraw,
+  onGeometryUpdate,
+  onDrawDelete,
 }: UseMapOptions) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -128,6 +134,8 @@ export function useMap({
   const pinMarkerRef = useRef<any>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const drawRef = useRef<any>(null)
+  // Maps our feature IDs to the draw-assigned IDs used during geometry editing
+  const editingDrawIdRef = useRef<{ featureId: string; drawId: string } | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
@@ -167,6 +175,20 @@ export function useMap({
           const drawn = e.features[0]
           if (drawn?.geometry) {
             onFeatureDraw?.(drawn.geometry as FeatureGeoJSON)
+          }
+        })
+
+        map.on('draw.update', (e: { features: GeoJSON.Feature[] }) => {
+          const updated = e.features[0]
+          if (updated?.geometry) {
+            onGeometryUpdate?.(updated.geometry as FeatureGeoJSON)
+          }
+        })
+
+        map.on('draw.delete', (e: { features: GeoJSON.Feature[] }) => {
+          if (e.features.length === 0) {
+            // Nothing was in draw state — user may intend to delete the selected UI feature
+            onDrawDelete?.()
           }
         })
       }
@@ -291,10 +313,62 @@ export function useMap({
     [isLoaded]
   )
 
+  // Load an existing feature into the draw control for geometry editing.
+  // Hides the static layer so only the editable draw version is visible.
+  const startEditGeometry = useCallback((feature: Feature) => {
+    const map = mapRef.current
+    const draw = drawRef.current
+    if (!map || !draw || !isLoaded) return
+
+    const geojsonData =
+      typeof feature.geojson === 'string'
+        ? JSON.parse(feature.geojson)
+        : feature.geojson
+
+    const ids = draw.add({
+      type: 'Feature',
+      geometry: geojsonData,
+      properties: {},
+    }) as string[]
+
+    const drawId = ids[0]
+    editingDrawIdRef.current = { featureId: feature.id, drawId }
+
+    // Select it immediately so the user can start editing
+    draw.changeMode('direct_select', { featureId: drawId })
+
+    // Hide the static layer(s) so there's no visual duplicate
+    const layerId = `feature-layer-${feature.id}`
+    const fillId = `${layerId}-fill`
+    if (map.getLayer(fillId)) map.setLayoutProperty(fillId, 'visibility', 'none')
+    if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', 'none')
+  }, [isLoaded])
+
+  // Remove the feature from draw state and restore the static layer.
+  const stopEditGeometry = useCallback((featureId: string) => {
+    const map = mapRef.current
+    const draw = drawRef.current
+    if (!map || !draw) return
+
+    if (editingDrawIdRef.current?.featureId === featureId) {
+      draw.delete(editingDrawIdRef.current.drawId)
+      editingDrawIdRef.current = null
+    }
+
+    draw.changeMode('simple_select')
+
+    // Restore the static layer visibility
+    const layerId = `feature-layer-${featureId}`
+    const fillId = `${layerId}-fill`
+    if (map.getLayer(fillId)) map.setLayoutProperty(fillId, 'visibility', 'visible')
+    if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', 'visible')
+  }, [])
+
   // Remove the last drawn shape from the draw control (called on modal cancel)
   const cancelDraw = useCallback(() => {
     if (drawRef.current) {
       drawRef.current.deleteAll()
+      editingDrawIdRef.current = null
     }
   }, [])
 
@@ -307,6 +381,8 @@ export function useMap({
     filterToDataPoints,
     addFeatureLayer,
     removeFeatureLayer,
+    startEditGeometry,
+    stopEditGeometry,
     cancelDraw,
   }
 }

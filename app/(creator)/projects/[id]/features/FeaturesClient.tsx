@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { ChevronLeft, Trash2, Pencil } from 'lucide-react'
 import { useMap } from '@/hooks/useMap'
 import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
@@ -28,10 +28,18 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
   const [pendingGeoJSON, setPendingGeoJSON] = useState<FeatureGeoJSON | null>(null)
   const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [editingGeometry, setEditingGeometry] = useState<FeatureGeoJSON | null>(null)
 
+  // Imperative map handles
   const addFeatureLayerRef = useRef<((f: Feature) => void) | null>(null)
-  const cancelDrawRef = useRef<(() => void) | null>(null)
   const removeFeatureLayerRef = useRef<((id: string) => void) | null>(null)
+  const cancelDrawRef = useRef<(() => void) | null>(null)
+  const startEditGeometryRef = useRef<((f: Feature) => void) | null>(null)
+  const stopEditGeometryRef = useRef<((id: string) => void) | null>(null)
+
+  // Keep a stable ref to selectedFeature so the draw-delete callback can access it
+  const selectedFeatureRef = useRef<Feature | null>(null)
+  useEffect(() => { selectedFeatureRef.current = selectedFeature }, [selectedFeature])
 
   // ── Draw handlers ──────────────────────────────────────────────────────────
 
@@ -55,21 +63,62 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
   const handleFeatureClick = useCallback((feature: Feature) => {
     setSelectedFeature(feature)
     setIsEditing(false)
+    setEditingGeometry(null)
   }, [])
+
+  // ── Draw delete (trash toolbar button) ───────────────────────────────────
+
+  const handleDrawDelete = useCallback(() => {
+    const current = selectedFeatureRef.current
+    if (current) {
+      handleDelete(current.id)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Edit ──────────────────────────────────────────────────────────────────
 
-  async function handleEditSave(featureId: string, updates: { name: string; type: FeatureType; description: string }) {
+  const handleEditStart = useCallback((feature: Feature) => {
+    setIsEditing(true)
+    setEditingGeometry(null)
+    startEditGeometryRef.current?.(feature)
+  }, [])
+
+  const handleEditCancel = useCallback((featureId: string) => {
+    stopEditGeometryRef.current?.(featureId)
+    setIsEditing(false)
+    setEditingGeometry(null)
+  }, [])
+
+  async function handleEditSave(
+    featureId: string,
+    updates: { name: string; type: FeatureType; description: string }
+  ) {
+    const body: Record<string, unknown> = { ...updates }
+    if (editingGeometry) body.geojson = editingGeometry
+
+    stopEditGeometryRef.current?.(featureId)
+
     const res = await fetch(`/api/features?id=${featureId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
+      body: JSON.stringify(body),
     })
     if (!res.ok) return
+
     const updated = await res.json() as Feature
+
     setFeatures((prev) => prev.map((f) => (f.id === featureId ? updated : f)))
+
+    // Refresh the map layer with updated geometry if it changed
+    if (editingGeometry) {
+      removeFeatureLayerRef.current?.(featureId)
+      // Small delay to let removeSource settle before re-adding
+      setTimeout(() => addFeatureLayerRef.current?.(updated), 50)
+    }
+
     setSelectedFeature(updated)
     setIsEditing(false)
+    setEditingGeometry(null)
   }
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -79,7 +128,11 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
     if (!res.ok) return
     setFeatures((prev) => prev.filter((f) => f.id !== featureId))
     removeFeatureLayerRef.current?.(featureId)
-    setSelectedFeature(null)
+    if (selectedFeatureRef.current?.id === featureId) {
+      setSelectedFeature(null)
+      setIsEditing(false)
+      setEditingGeometry(null)
+    }
   }
 
   return (
@@ -93,9 +146,13 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
           selectedFeatureId={selectedFeature?.id ?? null}
           onFeatureClick={handleFeatureClick}
           onFeatureDraw={handleFeatureDraw}
+          onGeometryUpdate={setEditingGeometry}
+          onDrawDelete={handleDrawDelete}
           onAddFeatureLayerReady={(fn) => { addFeatureLayerRef.current = fn }}
-          onCancelDrawReady={(fn) => { cancelDrawRef.current = fn }}
           onRemoveFeatureLayerReady={(fn) => { removeFeatureLayerRef.current = fn }}
+          onCancelDrawReady={(fn) => { cancelDrawRef.current = fn }}
+          onStartEditGeometryReady={(fn) => { startEditGeometryRef.current = fn }}
+          onStopEditGeometryReady={(fn) => { stopEditGeometryRef.current = fn }}
         />
         <DrawFeatureModal
           open={pendingGeoJSON !== null}
@@ -106,28 +163,26 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
         />
       </div>
 
-      {/* Right panel: list or detail */}
+      {/* Right panel */}
       <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
         {selectedFeature ? (
           isEditing ? (
             <EditPanel
               feature={selectedFeature}
+              hasGeometryChanges={editingGeometry !== null}
               onSave={handleEditSave}
-              onCancel={() => setIsEditing(false)}
+              onCancel={handleEditCancel}
             />
           ) : (
             <DetailPanel
               feature={selectedFeature}
               onBack={() => setSelectedFeature(null)}
-              onEdit={() => setIsEditing(true)}
+              onEdit={handleEditStart}
               onDelete={handleDelete}
             />
           )
         ) : (
-          <FeatureList
-            features={features}
-            onSelect={handleFeatureClick}
-          />
+          <FeatureList features={features} onSelect={handleFeatureClick} />
         )}
       </div>
     </div>
@@ -144,18 +199,16 @@ function FeatureList({ features, onSelect }: { features: Feature[]; onSelect: (f
           Map Features
         </h2>
         <p className="text-xs text-muted-foreground">
-          Use the drawing tools on the map to add features. Click a feature to view or edit.
+          Draw new features with the map tools. Click a feature to view or edit.
         </p>
       </div>
 
       {features.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center py-16 border-2 border-dashed border-border rounded-xl">
           <div className="text-4xl mb-3">🗺️</div>
-          <h3 className="font-heading text-base font-semibold text-talwa-navy mb-1">
-            No features yet
-          </h3>
+          <h3 className="font-heading text-base font-semibold text-talwa-navy mb-1">No features yet</h3>
           <p className="text-sm text-muted-foreground max-w-xs">
-            Use the polygon, line, or point tools on the map to define geographic areas for this project.
+            Use the polygon, line, or point tools on the map to define geographic areas.
           </p>
         </div>
       ) : (
@@ -192,7 +245,7 @@ function DetailPanel({
 }: {
   feature: Feature
   onBack: () => void
-  onEdit: () => void
+  onEdit: (f: Feature) => void
   onDelete: (id: string) => void
 }) {
   const [confirming, setConfirming] = useState(false)
@@ -234,7 +287,7 @@ function DetailPanel({
 
       <div className="flex gap-2 pt-1">
         <button
-          onClick={onEdit}
+          onClick={() => onEdit(feature)}
           className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-talwa-teal text-white text-sm font-medium hover:bg-talwa-teal/90 transition-colors"
         >
           <Pencil className="w-3.5 h-3.5" />
@@ -242,7 +295,7 @@ function DetailPanel({
         </button>
 
         {confirming ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-talwa-burnt-orange">Delete this feature?</span>
             <button
               onClick={handleConfirmDelete}
@@ -274,12 +327,14 @@ function DetailPanel({
 
 function EditPanel({
   feature,
+  hasGeometryChanges,
   onSave,
   onCancel,
 }: {
   feature: Feature
+  hasGeometryChanges: boolean
   onSave: (id: string, updates: { name: string; type: FeatureType; description: string }) => Promise<void>
-  onCancel: () => void
+  onCancel: (featureId: string) => void
 }) {
   const [name, setName] = useState(feature.name)
   const [type, setType] = useState<FeatureType>(feature.type)
@@ -296,14 +351,25 @@ function EditPanel({
   return (
     <div className="flex flex-col gap-5">
       <button
-        onClick={onCancel}
+        onClick={() => onCancel(feature.id)}
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-talwa-navy transition-colors w-fit"
       >
         <ChevronLeft className="w-4 h-4" />
         Back
       </button>
 
-      <h2 className="font-heading text-lg font-semibold text-talwa-navy">Edit feature</h2>
+      <div>
+        <h2 className="font-heading text-lg font-semibold text-talwa-navy">Edit feature</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Reshape the geometry on the map, or update the details below.
+        </p>
+      </div>
+
+      {hasGeometryChanges && (
+        <div className="rounded-lg bg-talwa-olive-light/30 border border-talwa-olive/30 px-3 py-2 text-xs text-talwa-navy">
+          Geometry updated — save to apply changes.
+        </div>
+      )}
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
@@ -349,7 +415,7 @@ function EditPanel({
 
       <div className="flex gap-2">
         <button
-          onClick={onCancel}
+          onClick={() => onCancel(feature.id)}
           className="flex-1 rounded-full border border-border text-talwa-navy text-sm font-medium py-2 hover:bg-accent transition-colors"
         >
           Cancel
@@ -375,9 +441,13 @@ function MapPanel({
   selectedFeatureId,
   onFeatureClick,
   onFeatureDraw,
+  onGeometryUpdate,
+  onDrawDelete,
   onAddFeatureLayerReady,
-  onCancelDrawReady,
   onRemoveFeatureLayerReady,
+  onCancelDrawReady,
+  onStartEditGeometryReady,
+  onStopEditGeometryReady,
 }: {
   mapboxToken: string
   center: [number, number]
@@ -385,25 +455,40 @@ function MapPanel({
   selectedFeatureId: string | null
   onFeatureClick: (feature: Feature) => void
   onFeatureDraw: (geojson: FeatureGeoJSON) => void
+  onGeometryUpdate: (geojson: FeatureGeoJSON) => void
+  onDrawDelete: () => void
   onAddFeatureLayerReady: (fn: (f: Feature) => void) => void
-  onCancelDrawReady: (fn: () => void) => void
   onRemoveFeatureLayerReady: (fn: (id: string) => void) => void
+  onCancelDrawReady: (fn: () => void) => void
+  onStartEditGeometryReady: (fn: (f: Feature) => void) => void
+  onStopEditGeometryReady: (fn: (id: string) => void) => void
 }) {
-  const { mapContainerRef, addFeatureLayer, cancelDraw, removeFeatureLayer } = useMap({
+  const {
+    mapContainerRef,
+    addFeatureLayer,
+    removeFeatureLayer,
+    cancelDraw,
+    startEditGeometry,
+    stopEditGeometry,
+  } = useMap({
     mapboxToken,
     center,
     features,
     drawingEnabled: true,
     onFeatureClick,
     onFeatureDraw,
+    onGeometryUpdate,
+    onDrawDelete,
   })
 
   const registeredRef = useRef(false)
   if (!registeredRef.current) {
     registeredRef.current = true
     onAddFeatureLayerReady(addFeatureLayer)
-    onCancelDrawReady(cancelDraw)
     onRemoveFeatureLayerReady(removeFeatureLayer)
+    onCancelDrawReady(cancelDraw)
+    onStartEditGeometryReady(startEditGeometry)
+    onStopEditGeometryReady(stopEditGeometry)
   }
 
   return (
