@@ -48,6 +48,7 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
   }, [])
 
   const handleDrawSave = useCallback((feature: Feature) => {
+    cancelDrawRef.current?.()           // clear draw state so MapboxDraw won't intercept clicks
     setFeatures((prev) => [...prev, feature])
     addFeatureLayerRef.current?.(feature)
     setPendingGeoJSON(null)
@@ -481,15 +482,11 @@ function MapPanel({
     onDrawDelete,
   })
 
-  const registeredRef = useRef(false)
-  if (!registeredRef.current) {
-    registeredRef.current = true
-    onAddFeatureLayerReady(addFeatureLayer)
-    onRemoveFeatureLayerReady(removeFeatureLayer)
-    onCancelDrawReady(cancelDraw)
-    onStartEditGeometryReady(startEditGeometry)
-    onStopEditGeometryReady(stopEditGeometry)
-  }
+  useEffect(() => { onAddFeatureLayerReady(addFeatureLayer) }, [addFeatureLayer, onAddFeatureLayerReady])
+  useEffect(() => { onRemoveFeatureLayerReady(removeFeatureLayer) }, [removeFeatureLayer, onRemoveFeatureLayerReady])
+  useEffect(() => { onCancelDrawReady(cancelDraw) }, [cancelDraw, onCancelDrawReady])
+  useEffect(() => { onStartEditGeometryReady(startEditGeometry) }, [startEditGeometry, onStartEditGeometryReady])
+  useEffect(() => { onStopEditGeometryReady(stopEditGeometry) }, [stopEditGeometry, onStopEditGeometryReady])
 
   return (
     <div className="relative w-full h-full">

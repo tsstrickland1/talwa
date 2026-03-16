@@ -289,13 +289,15 @@ export function useMap({
     [isLoaded]
   )
 
-  // Add a single feature layer after map load (used for dynamically-drawn features)
+  // Add a single feature layer after map load (used for dynamically-drawn features).
+  // Does not depend on isLoaded — callers only invoke this after user interaction,
+  // which can only happen once the map is visible and loaded.
   const addFeatureLayer = useCallback(
     (feature: Feature) => {
-      if (!mapRef.current || !isLoaded) return
+      if (!mapRef.current) return
       addFeatureLayerToMap(mapRef.current, feature, onFeatureClick)
     },
-    [isLoaded, onFeatureClick]
+    [onFeatureClick]
   )
 
   // Remove a feature's layers and source from the map (called after deletion)
