@@ -53,7 +53,9 @@ export async function POST(req: Request) {
 
   const source = isCreator ? 'creator' : 'contributor'
 
-  const { data, error } = await admin
+  // Try inserting with source column (requires migration 0006).
+  // Fall back to inserting without it in case the migration hasn't been applied yet.
+  let insertResult = await admin
     .from('features')
     .insert({
       project_id,
@@ -67,12 +69,31 @@ export async function POST(req: Request) {
     .select('*')
     .single()
 
-  if (error) {
-    console.error('Failed to insert feature:', error)
-    return new Response('Failed to save feature', { status: 500 })
+  if (insertResult.error?.message?.includes('"source"')) {
+    // Migration not yet applied — insert without the source column
+    insertResult = await admin
+      .from('features')
+      .insert({
+        project_id,
+        name,
+        type,
+        description: description ?? '',
+        geojson,
+        creator_id: user.id,
+      })
+      .select('*')
+      .single()
   }
 
-  return Response.json(data, { status: 201 })
+  const { data, error } = insertResult
+
+  if (error) {
+    console.error('Failed to insert feature:', error)
+    return Response.json({ error: error.message }, { status: 500 })
+  }
+
+  // Attach source to the returned object even if the column doesn't exist in DB yet
+  return Response.json({ ...data, source: (data as Record<string, unknown>).source ?? source }, { status: 201 })
 }
 
 export async function DELETE(req: Request) {

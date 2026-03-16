@@ -51,8 +51,11 @@ export function DrawFeatureModal({ open, projectId, geojson, onSave, onCancel }:
       })
 
       if (!res.ok) {
-        const text = await res.text()
-        setError(text || 'Failed to save feature')
+        const contentType = res.headers.get('content-type') ?? ''
+        const errorMsg = contentType.includes('application/json')
+          ? ((await res.json()) as { error?: string }).error
+          : await res.text()
+        setError(errorMsg || 'Failed to save feature')
         return
       }
 

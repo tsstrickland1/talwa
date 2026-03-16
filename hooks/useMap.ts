@@ -179,14 +179,13 @@ export function useMap({
         })
       })
 
-      map.on('click', () => {
-        // Only fire if not clicking a feature layer
-        // Note: layer-specific handlers above take precedence
-      })
-
-      map.on('click', (e: { lngLat: { lat: number; lng: number } }) => {
-        onMapClick?.({ lat: e.lngLat.lat, lng: e.lngLat.lng })
-      })
+      // Only wire up pin-drop click when drawing is disabled.
+      // When drawing tools are active, the draw workflow replaces pin-dropping.
+      if (!drawingEnabled) {
+        map.on('click', (e: { lngLat: { lat: number; lng: number } }) => {
+          onMapClick?.({ lat: e.lngLat.lat, lng: e.lngLat.lng })
+        })
+      }
     }
 
     initMap()
