@@ -155,7 +155,7 @@ export default function ExplorePage() {
            minus operator which Tailwind does not reliably preserve.
            The list scrolls internally; the map always fills its column. */}
       <div
-        className="sticky top-14 flex flex-col overflow-hidden"
+        className="sticky top-14 flex flex-col"
         style={{ height: 'calc(100vh - 3.5rem)' }}
       >
         {/* Mobile view toggle — lives inside the sticky panel */}
