@@ -156,7 +156,7 @@ export default function ExplorePage() {
            The list scrolls internally; the map always fills its column. */}
       <div
         className="sticky top-14 flex flex-col"
-        style={{ height: 'calc(100vh - 3.5rem)' }}
+        style={{ height: 'calc(100vh - 3.5rem)', '--map-h': 'calc(100vh - 3.5rem)' } as React.CSSProperties}
       >
         {/* Mobile view toggle — lives inside the sticky panel */}
         <div
@@ -230,12 +230,11 @@ export default function ExplorePage() {
             </div>
           </div>
 
-          {/* Map — h-full gives the column an explicit specified height so that
-               the h-full chain inside ExploreMap resolves correctly. Without this,
-               flex-stretch is implicit and height: 100% on children resolves to 0,
-               causing the minHeight:400px fallback to mismatch the canvas size. */}
+          {/* Map — the sticky panel above sets --map-h as a CSS custom property.
+               ExploreMap uses var(--map-h) as an explicitly specified height so that
+               Mapbox reads the correct canvas size on initialisation. */}
           <div
-            className={`relative w-full md:w-1/2 ${
+            className={`w-full md:w-1/2 h-full ${
               mobileView === 'list' ? 'hidden md:block' : 'block'
             }`}
           >

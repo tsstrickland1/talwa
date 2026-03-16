@@ -118,6 +118,7 @@ export function ExploreMap({
         return
       }
       renderMarkers(mapboxgl, mapRef.current, projects, hoveredProjectId, onProjectClick)
+      mapRef.current.resize()
       fitBounds(mapRef.current, projects)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,7 +185,7 @@ export function ExploreMap({
   }
 
   return (
-    <div className="absolute inset-0">
+    <div className="w-full" style={{ height: 'var(--map-h, calc(100vh - 3.5rem))' }}>
       <div ref={containerRef} className="h-full w-full" />
     </div>
   )
