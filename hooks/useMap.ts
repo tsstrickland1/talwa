@@ -40,7 +40,12 @@ function addFeatureLayerToMap(
     const sourceId = `feature-source-${feature.id}`
     const layerId = `feature-layer-${feature.id}`
 
-    if (map.getSource(sourceId)) return
+    console.log('[useMap] addFeatureLayerToMap', feature.id, feature.name, 'hasClickFn:', !!onFeatureClick)
+
+    if (map.getSource(sourceId)) {
+      console.log('[useMap] source already exists for', feature.id)
+      return
+    }
 
     map.addSource(sourceId, {
       type: 'geojson',
@@ -99,14 +104,20 @@ function addFeatureLayerToMap(
     }
 
     // Register click/cursor on the stroke layer
-    map.on('click', layerId, () => { onFeatureClick?.(feature) })
+    map.on('click', layerId, () => {
+      console.log('[useMap] layer click fired', layerId, feature.id)
+      onFeatureClick?.(feature)
+    })
     map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer' })
     map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = '' })
 
     // For polygons also register on the fill layer so interior clicks work
     if (geometryType === 'Polygon' || geometryType === 'MultiPolygon') {
       const fillId = `${layerId}-fill`
-      map.on('click', fillId, () => { onFeatureClick?.(feature) })
+      map.on('click', fillId, () => {
+        console.log('[useMap] fill click fired', fillId, feature.id)
+        onFeatureClick?.(feature)
+      })
       map.on('mouseenter', fillId, () => { map.getCanvas().style.cursor = 'pointer' })
       map.on('mouseleave', fillId, () => { map.getCanvas().style.cursor = '' })
     }
@@ -194,6 +205,7 @@ export function useMap({
       }
 
       map.on('load', () => {
+        console.log('[useMap] map loaded, adding', features.length, 'features')
         setIsLoaded(true)
 
         features.forEach((feature) => {
