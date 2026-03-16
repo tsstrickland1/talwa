@@ -96,19 +96,12 @@ export function ExploreMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Keep a ref to the latest projects so the ResizeObserver can re-fit bounds
-  const projectsRef = useRef<ProjectMarker[]>(projects)
-  projectsRef.current = projects
-
   // Resize map when container dimensions change (e.g. sticky layout settling)
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     const ro = new ResizeObserver(() => {
-      if (!mapRef.current) return
-      mapRef.current.resize()
-      // Re-fit bounds after resize so markers stay in the visible viewport
-      fitBounds(mapRef.current, projectsRef.current)
+      mapRef.current?.resize()
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -190,8 +183,8 @@ export function ExploreMap({
   }
 
   return (
-    <div className="relative h-full w-full" style={{ minHeight: '400px' }}>
-      <div ref={containerRef} className="absolute inset-0" />
+    <div className="h-full w-full" style={{ minHeight: '400px' }}>
+      <div ref={containerRef} className="h-full w-full" />
     </div>
   )
 }
