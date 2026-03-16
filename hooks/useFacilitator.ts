@@ -16,7 +16,7 @@ export function useFacilitator({
   conversationId,
 }: {
   projectId: string
-  conversationId: string
+  conversationId: string | null
 }) {
   const [activePin, setActivePin] = useState<Location | null>(null)
   const [activeFeature, setActiveFeature] = useState<Feature | null>(null)
@@ -25,6 +25,10 @@ export function useFacilitator({
   const [historyLoaded, setHistoryLoaded] = useState(false)
 
   useEffect(() => {
+    if (!conversationId) {
+      setHistoryLoaded(true)
+      return
+    }
     fetch(`/api/facilitator/messages?conversation_id=${conversationId}`)
       .then((res) => res.json())
       .then(({ messages }) => {

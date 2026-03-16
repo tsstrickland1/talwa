@@ -1,4 +1,4 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ContributorChatPanel } from './ContributorChatPanel'
@@ -16,11 +16,10 @@ export default async function ContributorProjectPage({ params }: Props) {
     data: { user: authUser },
   } = await supabase.auth.getUser()
 
-  if (!authUser) {
-    redirect(`/login?next=/projects/${id}`)
-  }
+  // Fetch project using admin client so RLS doesn't block unauthenticated reads
+  const admin = createAdminClient()
 
-  const { data: project } = await supabase
+  const { data: project } = await admin
     .from('projects')
     .select('*')
     .eq('id', id)
@@ -28,12 +27,24 @@ export default async function ContributorProjectPage({ params }: Props) {
 
   if (!project) notFound()
 
-  const { data: features } = await supabase
+  const { data: features } = await admin
     .from('features')
     .select('*')
     .eq('project_id', id)
 
-  const admin = createAdminClient()
+  // If user is not authenticated, render the panel without a conversation
+  if (!authUser) {
+    return (
+      <div className="h-screen">
+        <ContributorChatPanel
+          project={project as Project}
+          features={(features ?? []) as Feature[]}
+          conversationId={null}
+          mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
+        />
+      </div>
+    )
+  }
 
   // Create or find existing conversation for this user + project
   const { data: conversation, error } = await admin
@@ -50,7 +61,6 @@ export default async function ContributorProjectPage({ params }: Props) {
     .single()
 
   if (error || !conversation) {
-    // Fallback: fetch existing
     const { data: existing } = await admin
       .from('conversations')
       .select('id')

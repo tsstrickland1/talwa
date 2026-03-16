@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -12,51 +11,36 @@ export default async function ContributorLayout({
     data: { user: authUser },
   } = await supabase.auth.getUser()
 
-  if (!authUser) {
-    redirect('/login')
-  }
-
-  let { data: profile } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', authUser.id)
-    .single()
-
-  if (!profile) {
-    // The regular client (subject to RLS) may return null even if the row exists.
-    // Re-check with the admin client (bypasses RLS) before creating a new row,
-    // to avoid overwriting an existing user_type via upsert conflict resolution.
-    const admin = createAdminClient()
-    const { data: existingProfile } = await admin
+  // If the user is authenticated, ensure a profile record exists
+  if (authUser) {
+    let { data: profile } = await supabase
       .from('users')
       .select('*')
       .eq('id', authUser.id)
       .single()
 
-    if (existingProfile) {
-      profile = existingProfile
-    } else {
-      // Row truly doesn't exist (e.g. DB trigger didn't fire). Create a minimal one.
-      const { data: created } = await admin
+    if (!profile) {
+      const admin = createAdminClient()
+      const { data: existingProfile } = await admin
         .from('users')
-        .insert({
+        .select('*')
+        .eq('id', authUser.id)
+        .single()
+
+      if (existingProfile) {
+        profile = existingProfile
+      } else {
+        await admin.from('users').insert({
           id: authUser.id,
           email: authUser.email ?? '',
           name_first: '',
           name_last: '',
           user_type: 'community_contributor',
         })
-        .select()
-        .single()
-
-      if (!created) {
-        redirect('/auth/signout')
       }
-      profile = created
     }
   }
 
-  // Profile is available as `profile` for pages that need it via server props.
-  // No shared nav rendered here — each page manages its own layout.
+  // No redirect for unauthenticated users — project pages handle auth gating
   return <>{children}</>
 }
