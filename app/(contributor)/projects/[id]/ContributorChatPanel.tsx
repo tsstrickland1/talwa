@@ -35,18 +35,21 @@ import { ChatContainer } from '@/components/chat/ChatContainer'
 import { ThemeSurface } from '@/components/chat/ThemeSurface'
 import { DataPointSurface } from '@/components/chat/DataPointSurface'
 import { cn } from '@/lib/utils'
-import type { Feature, Project } from '@/lib/types'
+import type { Feature, Project, User } from '@/lib/types'
 
 const ContributorMap = dynamic(
   () => import('@/components/map/ContributorMap').then((m) => m.ContributorMap),
   { ssr: false }
 )
 
+type CreatorSummary = Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'>
+
 type Props = {
   project: Project
   features: Feature[]
   conversationId: string | null
   mapboxToken: string
+  creator?: CreatorSummary | null
 }
 
 export function ContributorChatPanel({
@@ -54,6 +57,7 @@ export function ContributorChatPanel({
   features,
   conversationId,
   mapboxToken,
+  creator,
 }: Props) {
   const router = useRouter()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -402,12 +406,53 @@ export function ContributorChatPanel({
                   <span className="text-sm font-medium text-talwa-navy">About</span>
                 </div>
                 <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4">
+                  {/* Featured image */}
+                  {project.featured_image && (
+                    <div className="relative w-full aspect-video rounded-lg overflow-hidden shrink-0">
+                      <Image
+                        src={project.featured_image}
+                        alt={project.name}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  )}
+
+                  {/* Project name + location */}
                   <div>
                     <h2 className="font-heading text-xl font-bold text-talwa-navy leading-tight">
                       {project.name}
                     </h2>
-                    <p className="text-sm text-muted-foreground mt-1">{project.location}</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">{project.location}</p>
                   </div>
+
+                  {/* Creator */}
+                  {creator && (
+                    <Link
+                      href={`/creators/${creator.id}`}
+                      className="flex items-center gap-2 text-sm text-talwa-teal hover:underline w-fit"
+                    >
+                      {creator.avatar ? (
+                        <Image
+                          src={creator.avatar}
+                          alt=""
+                          width={20}
+                          height={20}
+                          className="rounded-full w-5 h-5 object-cover shrink-0"
+                        />
+                      ) : (
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                          style={{ backgroundColor: '#C7EDFA', color: '#0A4F66' }}
+                        >
+                          {creator.name_first[0]}{creator.name_last[0]}
+                        </div>
+                      )}
+                      {creator.name_first} {creator.name_last}
+                    </Link>
+                  )}
+
+                  {/* Status badge */}
                   {project.status && (
                     <span
                       className="inline-block rounded-full px-3 py-1 text-xs font-medium capitalize"
@@ -416,6 +461,8 @@ export function ContributorChatPanel({
                       {project.status}
                     </span>
                   )}
+
+                  {/* Description */}
                   <p className="text-sm text-talwa-navy leading-relaxed">
                     {project.long_description || project.short_description}
                   </p>
