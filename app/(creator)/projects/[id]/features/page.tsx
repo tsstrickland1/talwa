@@ -1,12 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
-import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/server'
+import { FeaturesWrapper } from './FeaturesWrapper'
 import type { Feature } from '@/lib/types'
-
-const FeaturesClient = dynamic(
-  () => import('./FeaturesClient').then((m) => m.FeaturesClient),
-  { ssr: false }
-)
 
 type Props = {
   params: Promise<{ id: string }>
@@ -49,7 +44,7 @@ export default async function FeaturesPage({ params }: Props) {
       </div>
 
       <div className="flex-1 min-h-0">
-        <FeaturesClient
+        <FeaturesWrapper
           projectId={id}
           initialFeatures={features}
           mapboxToken={mapboxToken}
