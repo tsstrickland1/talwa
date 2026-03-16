@@ -34,8 +34,10 @@ import { useFacilitator } from '@/hooks/useFacilitator'
 import { ChatContainer } from '@/components/chat/ChatContainer'
 import { ThemeSurface } from '@/components/chat/ThemeSurface'
 import { DataPointSurface } from '@/components/chat/DataPointSurface'
+import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
 import { cn } from '@/lib/utils'
-import type { Feature, Project, User } from '@/lib/types'
+import type { Feature, FeatureGeoJSON, Project, User } from '@/lib/types'
+import type { ContributorMapHandle } from '@/components/map/ContributorMap'
 
 const ContributorMap = dynamic(
   () => import('@/components/map/ContributorMap').then((m) => m.ContributorMap),
@@ -54,13 +56,14 @@ type Props = {
 
 export function ContributorChatPanel({
   project,
-  features,
+  features: initialFeatures,
   conversationId,
   mapboxToken,
   creator,
 }: Props) {
   const router = useRouter()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const mapRef = useRef<ContributorMapHandle>(null)
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [hoveringMark, setHoveringMark] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -68,6 +71,8 @@ export function ContributorChatPanel({
   const [chatView, setChatView] = useState<'chat' | 'share' | 'about'>('chat')
   const [copied, setCopied] = useState(false)
   const [showAuthGate, setShowAuthGate] = useState(false)
+  const [featuresState, setFeaturesState] = useState<Feature[]>(initialFeatures)
+  const [pendingGeoJSON, setPendingGeoJSON] = useState<FeatureGeoJSON | null>(null)
 
   const isGuest = conversationId === null
 
@@ -83,6 +88,7 @@ export function ContributorChatPanel({
     pinLocation,
     clearSurface,
     append,
+    activateDrawnFeature,
   } = useFacilitator({
     projectId: project.id,
     conversationId,
@@ -129,6 +135,22 @@ export function ContributorChatPanel({
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }, [])
+
+  const handleFeatureDraw = useCallback((geojson: FeatureGeoJSON) => {
+    setPendingGeoJSON(geojson)
+  }, [])
+
+  const handleDrawSave = useCallback((feature: Feature) => {
+    setFeaturesState((prev) => [...prev, feature])
+    mapRef.current?.addFeatureLayer(feature)
+    activateDrawnFeature(feature)
+    setPendingGeoJSON(null)
+  }, [activateDrawnFeature])
+
+  const handleDrawCancel = useCallback(() => {
+    mapRef.current?.cancelDraw()
+    setPendingGeoJSON(null)
   }, [])
 
   function handleCopyLink() {
@@ -314,17 +336,27 @@ export function ContributorChatPanel({
             )}
           >
             <ContributorMap
+              ref={mapRef}
               mapboxToken={mapboxToken}
               center={center}
-              features={features}
+              features={featuresState}
               activePin={activePin}
+              drawingEnabled={!isGuest}
               onFeatureClick={(feature) => {
                 pinLocation({ lat: 0, lng: 0 }, feature)
               }}
               onMapClick={(location) => {
                 pinLocation(location, undefined)
               }}
+              onFeatureDraw={handleFeatureDraw}
               className="h-full"
+            />
+            <DrawFeatureModal
+              open={pendingGeoJSON !== null}
+              projectId={project.id}
+              geojson={pendingGeoJSON}
+              onSave={handleDrawSave}
+              onCancel={handleDrawCancel}
             />
             {/* Mobile: back to chat button overlaid on map */}
             {mobileChatView === 'map' && (

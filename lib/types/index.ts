@@ -75,6 +75,7 @@ export type Feature = {
   type: 'path' | 'park' | 'plaza' | 'landmark' | 'other'
   description: string
   geojson: string
+  source: 'creator' | 'contributor'
   creator_id: string
 }
 
@@ -199,6 +200,7 @@ export type FacilitatorRequestBody = {
   }>
   location: Location | null
   feature_id: string | null
+  contributor_drew: boolean
   project_id: string
   conversation_id: string
 }
