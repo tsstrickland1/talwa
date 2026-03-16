@@ -96,6 +96,17 @@ export function ExploreMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Resize map when container dimensions change (e.g. sticky layout settling)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      mapRef.current?.resize()
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   // Update markers when projects change
   useEffect(() => {
     if (!projects.length) return
