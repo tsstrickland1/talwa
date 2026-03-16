@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useEffect } from 'react'
+import 'mapbox-gl/dist/mapbox-gl.css'
 
 export type ProjectMarker = {
   id: string
