@@ -30,36 +30,11 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
   const [isEditing, setIsEditing] = useState(false)
   const [editingGeometry, setEditingGeometry] = useState<FeatureGeoJSON | null>(null)
 
-  // Imperative map handles
-  const addFeatureLayerRef = useRef<((f: Feature) => void) | null>(null)
-  const removeFeatureLayerRef = useRef<((id: string) => void) | null>(null)
-  const cancelDrawRef = useRef<(() => void) | null>(null)
-  const startEditGeometryRef = useRef<((f: Feature) => void) | null>(null)
-  const stopEditGeometryRef = useRef<((id: string) => void) | null>(null)
-
   // Keep a stable ref to selectedFeature so the draw-delete callback can access it
   const selectedFeatureRef = useRef<Feature | null>(null)
   useEffect(() => { selectedFeatureRef.current = selectedFeature }, [selectedFeature])
 
-  // ── Draw handlers ──────────────────────────────────────────────────────────
-
-  const handleFeatureDraw = useCallback((geojson: FeatureGeoJSON) => {
-    setPendingGeoJSON(geojson)
-  }, [])
-
-  const handleDrawSave = useCallback((feature: Feature) => {
-    cancelDrawRef.current?.()           // clear draw state so MapboxDraw won't intercept clicks
-    setFeatures((prev) => [...prev, feature])
-    addFeatureLayerRef.current?.(feature)
-    setPendingGeoJSON(null)
-  }, [])
-
-  const handleDrawCancel = useCallback(() => {
-    cancelDrawRef.current?.()
-    setPendingGeoJSON(null)
-  }, [])
-
-  // ── Feature click (from map or list) ──────────────────────────────────────
+  // ── Map ────────────────────────────────────────────────────────────────────
 
   const handleFeatureClick = useCallback((feature: Feature) => {
     setSelectedFeature(feature)
@@ -67,28 +42,60 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
     setEditingGeometry(null)
   }, [])
 
-  // ── Draw delete (trash toolbar button) ───────────────────────────────────
+  const handleFeatureDraw = useCallback((geojson: FeatureGeoJSON) => {
+    setPendingGeoJSON(geojson)
+  }, [])
 
   const handleDrawDelete = useCallback(() => {
     const current = selectedFeatureRef.current
-    if (current) {
-      handleDelete(current.id)
-    }
+    if (current) handleDeleteById(current.id)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const {
+    mapContainerRef,
+    addFeatureLayer,
+    removeFeatureLayer,
+    cancelDraw,
+    startEditGeometry,
+    stopEditGeometry,
+  } = useMap({
+    mapboxToken,
+    center,
+    features,
+    drawingEnabled: true,
+    onFeatureClick: handleFeatureClick,
+    onFeatureDraw: handleFeatureDraw,
+    onGeometryUpdate: setEditingGeometry,
+    onDrawDelete: handleDrawDelete,
+  })
+
+  // ── Draw handlers ──────────────────────────────────────────────────────────
+
+  const handleDrawSave = useCallback((feature: Feature) => {
+    cancelDraw()
+    setFeatures((prev) => [...prev, feature])
+    addFeatureLayer(feature)
+    setPendingGeoJSON(null)
+  }, [cancelDraw, addFeatureLayer])
+
+  const handleDrawCancel = useCallback(() => {
+    cancelDraw()
+    setPendingGeoJSON(null)
+  }, [cancelDraw])
 
   // ── Edit ──────────────────────────────────────────────────────────────────
 
   const handleEditStart = useCallback((feature: Feature) => {
     setIsEditing(true)
     setEditingGeometry(null)
-    startEditGeometryRef.current?.(feature)
-  }, [])
+    startEditGeometry(feature)
+  }, [startEditGeometry])
 
   const handleEditCancel = useCallback((featureId: string) => {
-    stopEditGeometryRef.current?.(featureId)
+    stopEditGeometry(featureId)
     setIsEditing(false)
     setEditingGeometry(null)
-  }, [])
+  }, [stopEditGeometry])
 
   async function handleEditSave(
     featureId: string,
@@ -97,7 +104,7 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
     const body: Record<string, unknown> = { ...updates }
     if (editingGeometry) body.geojson = editingGeometry
 
-    stopEditGeometryRef.current?.(featureId)
+    stopEditGeometry(featureId)
 
     const res = await fetch(`/api/features?id=${featureId}`, {
       method: 'PATCH',
@@ -110,11 +117,9 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
 
     setFeatures((prev) => prev.map((f) => (f.id === featureId ? updated : f)))
 
-    // Refresh the map layer with updated geometry if it changed
     if (editingGeometry) {
-      removeFeatureLayerRef.current?.(featureId)
-      // Small delay to let removeSource settle before re-adding
-      setTimeout(() => addFeatureLayerRef.current?.(updated), 50)
+      removeFeatureLayer(featureId)
+      setTimeout(() => addFeatureLayer(updated), 50)
     }
 
     setSelectedFeature(updated)
@@ -124,11 +129,11 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
 
   // ── Delete ────────────────────────────────────────────────────────────────
 
-  async function handleDelete(featureId: string) {
+  async function handleDeleteById(featureId: string) {
     const res = await fetch(`/api/features?id=${featureId}`, { method: 'DELETE' })
     if (!res.ok) return
     setFeatures((prev) => prev.filter((f) => f.id !== featureId))
-    removeFeatureLayerRef.current?.(featureId)
+    removeFeatureLayer(featureId)
     if (selectedFeatureRef.current?.id === featureId) {
       setSelectedFeature(null)
       setIsEditing(false)
@@ -140,21 +145,12 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
     <div className="flex flex-1 min-h-0 h-full">
       {/* Map panel */}
       <div className="relative w-[60%] shrink-0 border-r border-border">
-        <MapPanel
-          mapboxToken={mapboxToken}
-          center={center}
-          features={features}
-          selectedFeatureId={selectedFeature?.id ?? null}
-          onFeatureClick={handleFeatureClick}
-          onFeatureDraw={handleFeatureDraw}
-          onGeometryUpdate={setEditingGeometry}
-          onDrawDelete={handleDrawDelete}
-          onAddFeatureLayerReady={(fn) => { addFeatureLayerRef.current = fn }}
-          onRemoveFeatureLayerReady={(fn) => { removeFeatureLayerRef.current = fn }}
-          onCancelDrawReady={(fn) => { cancelDrawRef.current = fn }}
-          onStartEditGeometryReady={(fn) => { startEditGeometryRef.current = fn }}
-          onStopEditGeometryReady={(fn) => { stopEditGeometryRef.current = fn }}
-        />
+        <div ref={mapContainerRef} className="w-full h-full" />
+        {selectedFeature && (
+          <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-talwa-navy shadow-sm border border-talwa-sky">
+            Feature selected
+          </div>
+        )}
         <DrawFeatureModal
           open={pendingGeoJSON !== null}
           projectId={projectId}
@@ -179,7 +175,7 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
               feature={selectedFeature}
               onBack={() => setSelectedFeature(null)}
               onEdit={handleEditStart}
-              onDelete={handleDelete}
+              onDelete={handleDeleteById}
             />
           )
         ) : (
@@ -429,73 +425,6 @@ function EditPanel({
           {saving ? 'Saving…' : 'Save changes'}
         </button>
       </div>
-    </div>
-  )
-}
-
-// ── Map panel ─────────────────────────────────────────────────────────────────
-
-function MapPanel({
-  mapboxToken,
-  center,
-  features,
-  selectedFeatureId,
-  onFeatureClick,
-  onFeatureDraw,
-  onGeometryUpdate,
-  onDrawDelete,
-  onAddFeatureLayerReady,
-  onRemoveFeatureLayerReady,
-  onCancelDrawReady,
-  onStartEditGeometryReady,
-  onStopEditGeometryReady,
-}: {
-  mapboxToken: string
-  center: [number, number]
-  features: Feature[]
-  selectedFeatureId: string | null
-  onFeatureClick: (feature: Feature) => void
-  onFeatureDraw: (geojson: FeatureGeoJSON) => void
-  onGeometryUpdate: (geojson: FeatureGeoJSON) => void
-  onDrawDelete: () => void
-  onAddFeatureLayerReady: (fn: (f: Feature) => void) => void
-  onRemoveFeatureLayerReady: (fn: (id: string) => void) => void
-  onCancelDrawReady: (fn: () => void) => void
-  onStartEditGeometryReady: (fn: (f: Feature) => void) => void
-  onStopEditGeometryReady: (fn: (id: string) => void) => void
-}) {
-  const {
-    mapContainerRef,
-    addFeatureLayer,
-    removeFeatureLayer,
-    cancelDraw,
-    startEditGeometry,
-    stopEditGeometry,
-  } = useMap({
-    mapboxToken,
-    center,
-    features,
-    drawingEnabled: true,
-    onFeatureClick,
-    onFeatureDraw,
-    onGeometryUpdate,
-    onDrawDelete,
-  })
-
-  useEffect(() => { onAddFeatureLayerReady(addFeatureLayer) }, [addFeatureLayer, onAddFeatureLayerReady])
-  useEffect(() => { onRemoveFeatureLayerReady(removeFeatureLayer) }, [removeFeatureLayer, onRemoveFeatureLayerReady])
-  useEffect(() => { onCancelDrawReady(cancelDraw) }, [cancelDraw, onCancelDrawReady])
-  useEffect(() => { onStartEditGeometryReady(startEditGeometry) }, [startEditGeometry, onStartEditGeometryReady])
-  useEffect(() => { onStopEditGeometryReady(stopEditGeometry) }, [stopEditGeometry, onStopEditGeometryReady])
-
-  return (
-    <div className="relative w-full h-full">
-      <div ref={mapContainerRef} className="w-full h-full" />
-      {selectedFeatureId && (
-        <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-talwa-navy shadow-sm border border-talwa-sky">
-          Feature selected
-        </div>
-      )}
     </div>
   )
 }
