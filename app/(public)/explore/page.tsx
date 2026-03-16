@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Search, Map, List } from 'lucide-react'
+import { Search, Map as MapIcon, List } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { ProjectCard } from '@/components/cards/ProjectCard'
 import { ExploreMap } from './ExploreMap'
@@ -185,7 +185,7 @@ export default function ExplorePage() {
               : 'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border border-border text-talwa-navy hover:bg-accent'
           }
         >
-          <Map className="w-3.5 h-3.5" />
+          <MapIcon className="w-3.5 h-3.5" />
           Map
         </button>
         <button
