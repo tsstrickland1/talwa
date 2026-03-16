@@ -16,7 +16,15 @@ import {
   Compass,
   PanelLeft,
   X,
+  Share2,
+  Info,
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useFacilitator } from '@/hooks/useFacilitator'
 import { ChatContainer } from '@/components/chat/ChatContainer'
 import { ThemeSurface } from '@/components/chat/ThemeSurface'
@@ -45,7 +53,6 @@ export function ContributorChatPanel({
   const router = useRouter()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
-  const [hoveringMark, setHoveringMark] = useState(false)
   const [showAuthGate, setShowAuthGate] = useState(false)
 
   const isGuest = conversationId === null
@@ -125,23 +132,13 @@ export function ContributorChatPanel({
         {/* Brand mark / toggle button */}
         <button
           onClick={() => setSidebarExpanded((v: boolean) => !v)}
-          onMouseEnter={() => setHoveringMark(true)}
-          onMouseLeave={() => setHoveringMark(false)}
           className="flex items-center justify-center w-10 h-10 shrink-0 hover:bg-accent transition-colors"
           aria-label={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
         >
           {sidebarExpanded ? (
             <X className="w-4 h-4 text-talwa-navy" />
-          ) : hoveringMark ? (
-            <PanelLeft className="w-5 h-5 text-talwa-teal" />
           ) : (
-            <Image
-              src="/brand/brand-mark.png"
-              alt="Talwa"
-              width={22}
-              height={22}
-              className="w-[22px] h-[22px] object-contain"
-            />
+            <PanelLeft className="w-5 h-5 text-talwa-teal" />
           )}
         </button>
 
@@ -175,12 +172,31 @@ export function ContributorChatPanel({
           <h1 className="font-heading font-semibold text-talwa-navy text-lg flex-1 truncate">
             {project.name}
           </h1>
-          <button
-            className="text-muted-foreground hover:text-talwa-navy transition-colors"
-            aria-label="More options"
-          >
-            <MoreHorizontal className="w-5 h-5" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="text-muted-foreground hover:text-talwa-navy transition-colors"
+                aria-label="More options"
+              >
+                <MoreHorizontal className="w-5 h-5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem
+                onClick={() => navigator.clipboard.writeText(window.location.href)}
+                className="flex items-center gap-2"
+              >
+                <Share2 className="w-4 h-4" />
+                Share
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/projects/${project.id}/about`} className="flex items-center gap-2">
+                  <Info className="w-4 h-4" />
+                  About
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Map + Chat row */}
