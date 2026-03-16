@@ -99,6 +99,7 @@ export default async function ContributorProjectPage({ params }: Props) {
         features={(features ?? []) as Feature[]}
         conversationId={conversation.id}
         mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
+        creator={(creator ?? null) as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
       />
     </div>
   )

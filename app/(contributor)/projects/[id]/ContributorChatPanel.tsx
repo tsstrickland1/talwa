@@ -445,10 +445,10 @@ export function ContributorChatPanel({
                           className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
                           style={{ backgroundColor: '#C7EDFA', color: '#0A4F66' }}
                         >
-                          {creator.name_first[0]}{creator.name_last[0]}
+                          {(creator.name_first.charAt(0) + creator.name_last.charAt(0)).toUpperCase() || '?'}
                         </div>
                       )}
-                      {creator.name_first} {creator.name_last}
+                      {[creator.name_first, creator.name_last].filter(Boolean).join(' ') || 'Project Creator'}
                     </Link>
                   )}
 
