@@ -23,6 +23,12 @@ export type Project = {
   contributor_count: number
   status: 'draft' | 'active' | 'completed' | 'archived'
   location: string
+  /** Neighborhood name, populated via /api/admin/geocode-projects */
+  neighborhood: string | null
+  /** WGS84 latitude, populated via /api/admin/geocode-projects */
+  lat: number | null
+  /** WGS84 longitude, populated via /api/admin/geocode-projects */
+  lng: number | null
   publicly_visible: boolean
   creator_id: string
   dialogue_framework: string[]

@@ -28,9 +28,10 @@ export function MessageBubble({ role, content, isLoading }: MessageBubbleProps) 
         className={cn(
           'max-w-[80%] rounded-2xl px-4 py-2.5 text-sm',
           isUser
-            ? 'bg-talwa-teal text-white rounded-tr-sm'
+            ? 'bg-talwa-teal rounded-tr-sm'
             : 'bg-white border border-talwa-sky text-talwa-navy rounded-tl-sm'
         )}
+        style={isUser ? { color: '#FAFAEF' } : undefined}
       >
         {isLoading ? (
           <span className="flex gap-1 py-1">
@@ -39,7 +40,7 @@ export function MessageBubble({ role, content, isLoading }: MessageBubbleProps) 
             <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce" />
           </span>
         ) : isUser ? (
-          <p className="whitespace-pre-wrap">{content}</p>
+          <p className="whitespace-pre-wrap" style={{ color: '#FAFAEF' }}>{content}</p>
         ) : (
           <ReactMarkdown
             className="prose prose-sm max-w-none prose-p:leading-relaxed prose-p:my-1"

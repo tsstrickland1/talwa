@@ -32,8 +32,8 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Protect contributor and creator routes (/explore is public)
-  const protectedPrefixes = ['/projects', '/dashboard']
+  // Protect creator routes; /projects is now public (auth prompted only when chatting)
+  const protectedPrefixes = ['/dashboard']
   const isProtected = protectedPrefixes.some((prefix) =>
     pathname.startsWith(prefix)
   )

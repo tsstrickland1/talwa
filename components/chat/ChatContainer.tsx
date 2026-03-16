@@ -17,6 +17,7 @@ type ChatContainerProps = {
   placeholder?: string
   className?: string
   bottomSlot?: React.ReactNode
+  hideInput?: boolean
 }
 
 export function ChatContainer({
@@ -28,6 +29,7 @@ export function ChatContainer({
   placeholder,
   className,
   bottomSlot,
+  hideInput = false,
 }: ChatContainerProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -63,15 +65,17 @@ export function ChatContainer({
         </div>
       </ScrollArea>
 
-      <div className="border-t border-border p-3 bg-background">
-        <ChatInput
-          value={input}
-          onChange={handleInputChange}
-          onSubmit={handleSubmit}
-          isLoading={isLoading}
-          placeholder={placeholder}
-        />
-      </div>
+      {!hideInput && (
+        <div className="border-t border-border p-3 bg-background">
+          <ChatInput
+            value={input}
+            onChange={handleInputChange}
+            onSubmit={handleSubmit}
+            isLoading={isLoading}
+            placeholder={placeholder}
+          />
+        </div>
+      )}
     </div>
   )
 }

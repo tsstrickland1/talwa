@@ -3,8 +3,9 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ProjectCard } from '@/components/cards/ProjectCard'
 import { Button } from '@/components/ui/button'
+import { GeocodeProjectsButton } from './GeocodeProjectsButton'
 import { Plus } from 'lucide-react'
-import type { Project } from '@/lib/types'
+import type { Project, User } from '@/lib/types'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -13,6 +14,14 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser()
 
   if (!authUser) redirect('/login')
+
+  const { data: profileData } = await supabase
+    .from('users')
+    .select('user_type')
+    .eq('id', authUser.id)
+    .single()
+
+  const isAdmin = (profileData as Pick<User, 'user_type'> | null)?.user_type === 'admin'
 
   const { data: projects } = await supabase
     .from('projects')
@@ -43,6 +52,16 @@ export default async function DashboardPage() {
           </Link>
         </Button>
       </div>
+
+      {/* Admin tools */}
+      {isAdmin && (
+        <div className="mb-8">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            Admin
+          </p>
+          <GeocodeProjectsButton />
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
