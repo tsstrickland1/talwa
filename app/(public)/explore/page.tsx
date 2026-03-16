@@ -86,7 +86,7 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col">
       {/* ── Hero ──────────────────────────────────────────────── */}
       {/* bg-talwa-olive-light via explicit hex in case Tailwind class isn't yet compiled */}
       <section
@@ -150,7 +150,7 @@ export default function ExplorePage() {
 
       {/* Mobile view toggle */}
       <div
-        className="md:hidden flex items-center justify-end px-4 py-2 border-b border-border shrink-0"
+        className="md:hidden flex items-center justify-end px-4 py-2 border-b border-border shrink-0 sticky top-14 z-30"
         style={{ backgroundColor: '#FAFAEF' }}
       >
         <div className="flex rounded-md border border-border overflow-hidden shadow-sm">
@@ -174,10 +174,10 @@ export default function ExplorePage() {
       </div>
 
       {/* ── Content: project list (left) + map (right) ────────── */}
-      <div className="flex flex-1 min-h-0">
+      <div className="md:flex md:items-start">
         {/* Project list */}
         <div
-          className={`w-full md:w-1/2 overflow-y-auto ${
+          className={`w-full md:w-1/2 ${
             mobileView === 'map' ? 'hidden md:flex md:flex-col' : 'flex flex-col'
           }`}
           style={{ backgroundColor: '#FAFAEF' }}
@@ -222,8 +222,8 @@ export default function ExplorePage() {
 
         {/* Map */}
         <div
-          className={`w-full md:w-1/2 h-full ${
-            mobileView === 'list' ? 'hidden md:block' : 'block'
+          className={`w-full md:w-1/2 md:sticky md:top-14 md:h-[calc(100vh-3.5rem)] ${
+            mobileView === 'list' ? 'hidden md:block' : 'block h-[calc(100vh-6rem)] md:h-[calc(100vh-3.5rem)]'
           }`}
         >
           <ExploreMap
