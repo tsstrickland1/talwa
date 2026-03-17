@@ -557,7 +557,7 @@ export function ContributorChatPanel({
           {/* ── Chat / Share / About panel ── */}
           <div
             className={cn(
-              'flex flex-col min-w-0 md:w-[340px] md:shrink-0 md:flex-none',
+              'flex flex-col md:w-1/3 md:min-w-[300px] md:shrink-0 md:flex-none',
               mobileChatView === 'map' ? 'hidden md:flex' : 'flex flex-1'
             )}
           >
