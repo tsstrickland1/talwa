@@ -179,16 +179,30 @@ export function useMap({
       // registered via map.on('click', layerId, ...) after addControl().
       // By using a global handler here (before addControl) + queryRenderedFeatures
       // we fire first and resolve the click ourselves.
-      map.on('click', (e: { point: unknown }) => {
+      //
+      // This single handler also calls onMapClick when no feature is hit and
+      // drawing is disabled (guest mode). Using one handler prevents the double-
+      // fire bug where a separate onMapClick handler would clear a feature
+      // selection immediately after onFeatureClick set it.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      map.on('click', (e: any) => {
         const layerIds = Array.from(layerFeatureMapRef.current.keys()).filter((id) => {
           try { return !!map.getLayer(id) } catch { return false }
         })
-        if (layerIds.length === 0) return
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const clicked: any[] = map.queryRenderedFeatures(e.point, { layers: layerIds })
+        const clicked: any[] = layerIds.length > 0
+          ? map.queryRenderedFeatures(e.point, { layers: layerIds })
+          : []
         if (clicked.length > 0) {
           const feature = layerFeatureMapRef.current.get(clicked[0].layer.id)
-          if (feature) onFeatureClickRef.current?.(feature)
+          if (feature) {
+            onFeatureClickRef.current?.(feature)
+            return
+          }
+        }
+        // No feature hit — fire map click (guests use this to drop a pin)
+        if (!drawingEnabled) {
+          onMapClickRef.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng })
         }
       })
 
@@ -223,11 +237,6 @@ export function useMap({
         })
       })
 
-      if (!drawingEnabled) {
-        map.on('click', (e: { lngLat: { lat: number; lng: number } }) => {
-          onMapClickRef.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng })
-        })
-      }
     }
 
     initMap()
