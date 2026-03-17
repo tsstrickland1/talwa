@@ -40,8 +40,7 @@ import { ChatContainer } from '@/components/chat/ChatContainer'
 import { ThemeSurface } from '@/components/chat/ThemeSurface'
 import { DataPointSurface } from '@/components/chat/DataPointSurface'
 import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu'
-import { SketchWorkspace } from '@/components/chat/SketchWorkspace'
-import { VisualizeNudge } from '@/components/chat/VisualizeNudge'
+import { SketchWorkspace } from '@/components/chat/SketchWizard'
 import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
 import { createClient } from '@/lib/supabase/client'
 import { uploadImage, storagePaths, getFileExtension } from '@/lib/supabase/storage'
@@ -105,8 +104,8 @@ export function ContributorChatPanel({
   const [sketchesLoading, setSketchesLoading] = useState(false)
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
-  const [sketchFeature, setSketchFeature] = useState<Feature | null>(null)
-  const [showVisualizeNudge, setShowVisualizeNudge] = useState(false)
+  const [sketchWorkspaceOpen, setSketchWorkspaceOpen] = useState(false)
+  const [pendingVisualize, setPendingVisualize] = useState(false)
 
   const isGuest = conversationId === null
 
@@ -194,11 +193,16 @@ export function ContributorChatPanel({
   }, [])
 
   const handleDrawSave = useCallback((feature: Feature) => {
-    setFeaturesState((prev) => [...prev, feature])
+    setFeaturesState((prev: Feature[]) => [...prev, feature])
     mapRef.current?.addFeatureLayer(feature)
     activateDrawnFeature(feature)
     setPendingGeoJSON(null)
-  }, [activateDrawnFeature])
+    if (pendingVisualize) {
+      setPendingVisualize(false)
+      setSketchWorkspaceOpen(true)
+      setMobileChatView('chat')
+    }
+  }, [activateDrawnFeature, pendingVisualize])
 
   const handleDrawCancel = useCallback(() => {
     mapRef.current?.cancelDraw()
@@ -218,7 +222,10 @@ export function ContributorChatPanel({
     setFeatureSketches([])
     // Fly after a tick so the panel has begun rendering (ResizeObserver fires map.resize)
     setTimeout(() => mapRef.current?.flyToFeature(feature), 60)
-  }, [pinLocation])
+    // If the visualization workspace is open, switch back to chat so the user
+    // can see the selected feature reflected in the workspace's feature_select step
+    if (sketchWorkspaceOpen) setMobileChatView('chat')
+  }, [pinLocation, sketchWorkspaceOpen])
 
   const handleFeatureDismiss = useCallback(() => {
     clearPin()
@@ -349,14 +356,18 @@ export function ContributorChatPanel({
     [conversationId]
   )
 
-  const handleOpenSketchWorkspace = useCallback((feature: Feature) => {
-    setShowVisualizeNudge(false)
-    setSketchFeature(feature)
+  const handleOpenSketchWorkspace = useCallback(() => {
+    setSketchWorkspaceOpen(true)
   }, [])
 
-  const handleVisualizeNoFeature = useCallback(() => {
-    setSketchFeature(null)
-    setShowVisualizeNudge(true)
+  const handleSketchGoToMap = useCallback(() => {
+    setMobileChatView('map')
+  }, [])
+
+  const handleDrawNewFeature = useCallback(() => {
+    setSketchWorkspaceOpen(false)
+    setPendingVisualize(true)
+    setMobileChatView('map')
   }, [])
 
   const handleSketchPublished = useCallback((sketch: Sketch) => {
@@ -815,21 +826,15 @@ export function ContributorChatPanel({
                     className="flex-1 min-h-0"
                     hideInput
                     bottomSlot={
-                      sketchFeature && conversationId ? (
+                      sketchWorkspaceOpen && conversationId ? (
                         <SketchWorkspace
-                          feature={sketchFeature}
+                          activeFeature={activeFeature}
                           projectId={project.id}
                           conversationId={conversationId}
-                          onClose={() => setSketchFeature(null)}
+                          onClose={() => setSketchWorkspaceOpen(false)}
+                          onGoToMap={handleSketchGoToMap}
+                          onDrawNewFeature={handleDrawNewFeature}
                           onPublished={handleSketchPublished}
-                        />
-                      ) : showVisualizeNudge ? (
-                        <VisualizeNudge
-                          onGoToMap={() => {
-                            setShowVisualizeNudge(false)
-                            setMobileChatView('map')
-                          }}
-                          onDismiss={() => setShowVisualizeNudge(false)}
                         />
                       ) : surfacedContent?.type === 'theme' ? (
                         <ThemeSurface theme={null} onDismiss={clearSurface} />
@@ -909,7 +914,6 @@ export function ContributorChatPanel({
                               onTagFeature={handleTagFeature}
                               onPhotoSelected={handlePhotoSelected}
                               onVisualize={handleOpenSketchWorkspace}
-                              onVisualizeNoFeature={handleVisualizeNoFeature}
                             />
                             <textarea
                               ref={textareaRef}

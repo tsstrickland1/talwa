@@ -21,8 +21,7 @@ interface ChatPlusMenuProps {
   onUseMyLocation: () => void
   onTagFeature: (feature: Feature) => void
   onPhotoSelected: (file: File) => void
-  onVisualize: (feature: Feature) => void
-  onVisualizeNoFeature: () => void
+  onVisualize: () => void
 }
 
 export function ChatPlusMenu({
@@ -33,7 +32,6 @@ export function ChatPlusMenu({
   onTagFeature,
   onPhotoSelected,
   onVisualize,
-  onVisualizeNoFeature,
 }: ChatPlusMenuProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -108,42 +106,11 @@ export function ChatPlusMenu({
 
           <DropdownMenuSeparator />
 
-          {/* Visualize */}
-          {activeFeature ? (
-            <DropdownMenuItem
-              onSelect={() => onVisualize(activeFeature)}
-              className="gap-2.5"
-            >
-              <Sparkles className="w-4 h-4 text-talwa-teal" />
-              <span className="text-talwa-teal font-medium">Visualize</span>
-            </DropdownMenuItem>
-          ) : hasFeatures ? (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="gap-2.5">
-                <Sparkles className="w-4 h-4 text-talwa-teal" />
-                <span className="text-talwa-teal font-medium">Visualize…</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-52 max-h-64 overflow-y-auto">
-                {features.map((feature) => (
-                  <DropdownMenuItem
-                    key={feature.id}
-                    onSelect={() => onVisualize(feature)}
-                    className="gap-2"
-                  >
-                    <span className="truncate">{feature.name}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          ) : (
-            <DropdownMenuItem onSelect={onVisualizeNoFeature} className="gap-2.5">
-              <Sparkles className="w-4 h-4 text-talwa-teal/60" />
-              <div className="flex flex-col leading-tight">
-                <span className="text-talwa-teal/80 font-medium">Visualize</span>
-                <span className="text-xs text-muted-foreground">Draw a feature first</span>
-              </div>
-            </DropdownMenuItem>
-          )}
+          {/* Visualize — always available; workspace handles feature selection */}
+          <DropdownMenuItem onSelect={onVisualize} className="gap-2.5">
+            <Sparkles className="w-4 h-4 text-talwa-teal" />
+            <span className="text-talwa-teal font-medium">Visualize</span>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
