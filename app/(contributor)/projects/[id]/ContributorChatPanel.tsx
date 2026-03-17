@@ -139,13 +139,15 @@ export function ContributorChatPanel({
       }
       if (pendingImageUrl) {
         const text = input.trim() || '(shared an image)'
+        // AI SDK useChat types content as string, but runtime + streamText support
+        // array content for multi-modal messages — cast is safe here.
         append({
           role: 'user',
           content: [
             { type: 'image', image: pendingImageUrl },
             { type: 'text', text },
           ],
-        })
+        } as unknown as Parameters<typeof append>[0])
         setInput('')
         setPendingImageUrl(null)
         return
