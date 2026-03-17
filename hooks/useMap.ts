@@ -23,6 +23,32 @@ type UseMapOptions = {
   onDrawDelete?: () => void
 }
 
+// Computes a combined bounding box from all features' GeoJSON coordinates.
+// Returns null if no valid coordinates are found.
+function computeFeaturesBbox(features: Feature[]): [[number, number], [number, number]] | null {
+  const coords: [number, number][] = []
+  const flatten = (c: unknown) => {
+    if (typeof (c as number[])[0] === 'number') {
+      coords.push(c as [number, number])
+    } else {
+      ;(c as unknown[]).forEach(flatten)
+    }
+  }
+  for (const feature of features) {
+    try {
+      const geojson = typeof feature.geojson === 'string' ? JSON.parse(feature.geojson) : feature.geojson
+      flatten(geojson.coordinates)
+    } catch { /* skip malformed geojson */ }
+  }
+  if (coords.length === 0) return null
+  const lngs = coords.map(([lng]) => lng)
+  const lats = coords.map(([, lat]) => lat)
+  return [
+    [Math.min(...lngs), Math.min(...lats)],
+    [Math.max(...lngs), Math.max(...lats)],
+  ]
+}
+
 // Adds a single feature layer to an already-loaded map.
 // Registers the layer IDs in layerFeatureMap so the global click handler can resolve clicks.
 function addFeatureLayerToMap(
@@ -235,6 +261,19 @@ export function useMap({
         features.forEach((feature) => {
           addFeatureLayerToMap(map, feature, layerFeatureMapRef.current)
         })
+
+        // Snap camera to the geographic extent of all features
+        if (features.length > 0) {
+          const bbox = computeFeaturesBbox(features)
+          if (bbox) {
+            const [[minLng, minLat], [maxLng, maxLat]] = bbox
+            if (minLng === maxLng && minLat === maxLat) {
+              map.flyTo({ center: [minLng, minLat], zoom: 15 })
+            } else {
+              map.fitBounds(bbox, { padding: 80, maxZoom: 16, duration: 0 })
+            }
+          }
+        }
       })
 
     }

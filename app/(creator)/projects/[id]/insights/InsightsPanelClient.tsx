@@ -37,7 +37,10 @@ export function InsightsPanelClient({
     selectTheme,
   } = useAnalyst({ projectId: project.id })
 
-  const center: [number, number] = [-73.9857, 40.7484]
+  const center: [number, number] =
+    project.lng != null && project.lat != null
+      ? [project.lng, project.lat]
+      : [-73.9857, 40.7484]
 
   const themeDataPointCounts = themes.reduce(
     (acc, theme) => {
