@@ -283,7 +283,10 @@ export function ContributorChatPanel({
     })
   }
 
-  const center: [number, number] = [-73.9857, 40.7484]
+  const center: [number, number] =
+    project.lng != null && project.lat != null
+      ? [project.lng, project.lat]
+      : [-73.9857, 40.7484]
   const hasMessages = messages.length > 0
 
   // Shared nav items used in both desktop sidebar and mobile drawer
