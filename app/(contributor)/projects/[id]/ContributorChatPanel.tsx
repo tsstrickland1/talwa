@@ -270,6 +270,7 @@ export function ContributorChatPanel({
 
   const handlePanelBackToMap = useCallback(() => {
     setFeaturePanelState('open')
+    setMobileChatView('map')
     setTimeout(() => {
       if (selectedFeature) mapRef.current?.flyToFeature(selectedFeature)
     }, 60)
@@ -538,10 +539,25 @@ export function ContributorChatPanel({
             </div>
           )}
 
+          {/* Mobile expanded feature detail — full-screen overlay */}
+          {featurePanelState === 'expanded' && selectedFeature && (
+            <div className="md:hidden fixed inset-0 z-40 flex flex-col">
+              <FeatureDetailExpanded
+                feature={selectedFeature}
+                sketches={featureSketches}
+                sketchesLoading={sketchesLoading}
+                canEdit={userId !== null && userId === selectedFeature.creator_id}
+                onBackToMap={handlePanelBackToMap}
+                onDismiss={handleFeatureDismiss}
+                onEditStart={handleEditStart}
+              />
+            </div>
+          )}
+
           {/* ── Chat / Share / About panel ── */}
           <div
             className={cn(
-              'flex flex-col min-w-0 md:w-[340px] md:shrink-0',
+              'flex flex-col min-w-0 md:w-[340px] md:shrink-0 md:flex-none',
               mobileChatView === 'map' ? 'hidden md:flex' : 'flex flex-1'
             )}
           >
