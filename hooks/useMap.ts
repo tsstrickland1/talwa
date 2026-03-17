@@ -215,9 +215,15 @@ export function useMap({
         const layerIds = Array.from(layerFeatureMapRef.current.keys()).filter((id) => {
           try { return !!map.getLayer(id) } catch { return false }
         })
+        // Use a bounding box around the tap point to accommodate mobile touch imprecision.
+        // A 20px radius buffer ensures thin lines/polygons are reliably hit on fat-finger taps.
+        const bbox: [[number, number], [number, number]] = [
+          [e.point.x - 20, e.point.y - 20],
+          [e.point.x + 20, e.point.y + 20],
+        ]
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const clicked: any[] = layerIds.length > 0
-          ? map.queryRenderedFeatures(e.point, { layers: layerIds })
+          ? map.queryRenderedFeatures(bbox, { layers: layerIds })
           : []
         if (clicked.length > 0) {
           const feature = layerFeatureMapRef.current.get(clicked[0].layer.id)
