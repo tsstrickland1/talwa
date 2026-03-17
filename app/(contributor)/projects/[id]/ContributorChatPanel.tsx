@@ -27,6 +27,7 @@ import {
   Minimize2,
   Maximize2,
   ChevronDown,
+  Loader2,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -38,8 +39,11 @@ import { useFacilitator, computeCentroid } from '@/hooks/useFacilitator'
 import { ChatContainer } from '@/components/chat/ChatContainer'
 import { ThemeSurface } from '@/components/chat/ThemeSurface'
 import { DataPointSurface } from '@/components/chat/DataPointSurface'
+import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu'
+import { SketchSurface } from '@/components/chat/SketchSurface'
 import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
 import { createClient } from '@/lib/supabase/client'
+import { uploadImage, storagePaths, getFileExtension } from '@/lib/supabase/storage'
 import { cn } from '@/lib/utils'
 import type { Feature, FeatureGeoJSON, FeatureType, Project, Sketch, User } from '@/lib/types'
 import type { ContributorMapHandle } from '@/components/map/ContributorMap'
@@ -98,12 +102,17 @@ export function ContributorChatPanel({
   const [featurePanelState, setFeaturePanelState] = useState<FeaturePanelState>('closed')
   const [featureSketches, setFeatureSketches] = useState<Sketch[]>([])
   const [sketchesLoading, setSketchesLoading] = useState(false)
+  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [pendingSketch, setPendingSketch] = useState<Sketch | null>(null)
+  const [isGeneratingSketch, setIsGeneratingSketch] = useState(false)
 
   const isGuest = conversationId === null
 
   const {
     messages,
     input,
+    setInput,
     handleInputChange,
     handleSubmit,
     isLoading,
@@ -128,9 +137,22 @@ export function ContributorChatPanel({
         setShowAuthGate(true)
         return
       }
+      if (pendingImageUrl) {
+        const text = input.trim() || '(shared an image)'
+        append({
+          role: 'user',
+          content: [
+            { type: 'image', image: pendingImageUrl },
+            { type: 'text', text },
+          ],
+        })
+        setInput('')
+        setPendingImageUrl(null)
+        return
+      }
       handleSubmit(e)
     },
-    [isGuest, handleSubmit]
+    [isGuest, handleSubmit, pendingImageUrl, input, append, setInput]
   )
 
   const guardedAppend = useCallback(
@@ -282,6 +304,72 @@ export function ContributorChatPanel({
       setTimeout(() => setCopied(false), 2000)
     })
   }
+
+  const handleUseMyLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.')
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        pinLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+      },
+      () => {
+        alert('Unable to retrieve your location. Please check your browser permissions.')
+      }
+    )
+  }, [pinLocation])
+
+  const handleTagFeature = useCallback(
+    (feature: Feature) => {
+      handleFeatureSelect(feature)
+    },
+    [handleFeatureSelect]
+  )
+
+  const handlePhotoSelected = useCallback(
+    async (file: File) => {
+      if (!conversationId) return
+      setIsUploadingImage(true)
+      try {
+        const supabase = createClient()
+        const ext = getFileExtension(file)
+        const path = storagePaths.conversationAttachment(conversationId, ext)
+        const url = await uploadImage(supabase, 'conversation-attachments', path, file)
+        setPendingImageUrl(url)
+      } catch (err) {
+        console.error('Photo upload failed:', err)
+      } finally {
+        setIsUploadingImage(false)
+      }
+    },
+    [conversationId]
+  )
+
+  const handleVisualize = useCallback(
+    async (featureId: string) => {
+      const feature = featuresState.find((f) => f.id === featureId)
+      if (!feature) return
+      setIsGeneratingSketch(true)
+      try {
+        const prompt =
+          `An architectural concept sketch of ${feature.name}, a ${feature.type} in ${project.location}. ${feature.description}`.trim()
+        const res = await fetch('/api/images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, feature_id: featureId, project_id: project.id }),
+        })
+        if (!res.ok) throw new Error('Image generation failed')
+        const { sketch } = (await res.json()) as { sketch: Sketch }
+        setPendingSketch(sketch)
+      } catch (err) {
+        console.error('Visualize failed:', err)
+      } finally {
+        setIsGeneratingSketch(false)
+      }
+    },
+    [featuresState, project]
+  )
 
   const center: [number, number] =
     project.lng != null && project.lat != null
@@ -735,7 +823,21 @@ export function ContributorChatPanel({
                     className="flex-1 min-h-0"
                     hideInput
                     bottomSlot={
-                      surfacedContent?.type === 'theme' ? (
+                      pendingSketch ? (
+                        <SketchSurface
+                          sketch={pendingSketch}
+                          featureName={
+                            featuresState.find((f) => f.id === pendingSketch.feature_id)
+                              ?.name
+                          }
+                          onDismiss={() => setPendingSketch(null)}
+                        />
+                      ) : isGeneratingSketch ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 px-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Generating sketch…</span>
+                        </div>
+                      ) : surfacedContent?.type === 'theme' ? (
                         <ThemeSurface theme={null} onDismiss={clearSurface} />
                       ) : surfacedContent?.type === 'data_point' ? (
                         <DataPointSurface dataPoint={null} onDismiss={clearSurface} />
@@ -772,28 +874,72 @@ export function ContributorChatPanel({
                       <div className="flex items-center gap-2">
                         <form
                           onSubmit={guardedSubmit}
-                          className="flex-1 flex items-center gap-2 bg-background rounded-full border border-input px-3 py-2"
+                          className="flex-1 flex flex-col bg-background rounded-2xl border border-input px-3 py-2 gap-2"
                         >
-                          <PlusCircle className="w-5 h-5 text-muted-foreground/50 shrink-0" />
-                          <textarea
-                            ref={textareaRef}
-                            value={input}
-                            onChange={handleInputChange}
-                            onKeyDown={handleKeyDown}
-                            onInput={handleTextareaInput}
-                            placeholder="Ask me something …"
-                            disabled={isLoading}
-                            rows={1}
-                            className="flex-1 bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground text-talwa-navy min-h-[20px] max-h-28 overflow-y-auto"
-                          />
-                          <button
-                            type="submit"
-                            disabled={isLoading || !input.trim()}
-                            className="w-8 h-8 rounded-full bg-talwa-teal flex items-center justify-center text-white disabled:opacity-40 shrink-0 transition-opacity"
-                            aria-label="Send"
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                          </button>
+                          {/* Pending image preview */}
+                          {(pendingImageUrl || isUploadingImage) && (
+                            <div className="flex items-center gap-2">
+                              <div className="relative w-12 h-12 rounded-md overflow-hidden border border-border shrink-0 bg-muted">
+                                {isUploadingImage ? (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                                  </div>
+                                ) : pendingImageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={pendingImageUrl}
+                                    alt="Attachment preview"
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : null}
+                              </div>
+                              {!isUploadingImage && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingImageUrl(null)}
+                                  aria-label="Remove attachment"
+                                  className="text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2">
+                            <ChatPlusMenu
+                              features={featuresState}
+                              activeFeature={activeFeature}
+                              disabled={isLoading || isUploadingImage}
+                              onUseMyLocation={handleUseMyLocation}
+                              onTagFeature={handleTagFeature}
+                              onPhotoSelected={handlePhotoSelected}
+                              onVisualize={handleVisualize}
+                            />
+                            <textarea
+                              ref={textareaRef}
+                              value={input}
+                              onChange={handleInputChange}
+                              onKeyDown={handleKeyDown}
+                              onInput={handleTextareaInput}
+                              placeholder="Ask me something …"
+                              disabled={isLoading}
+                              rows={1}
+                              className="flex-1 bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground text-talwa-navy min-h-[20px] max-h-28 overflow-y-auto"
+                            />
+                            <button
+                              type="submit"
+                              disabled={
+                                isLoading ||
+                                isUploadingImage ||
+                                (!input.trim() && !pendingImageUrl)
+                              }
+                              className="w-8 h-8 rounded-full bg-talwa-teal flex items-center justify-center text-white disabled:opacity-40 shrink-0 transition-opacity"
+                              aria-label="Send"
+                            >
+                              <ArrowUp className="w-4 h-4" />
+                            </button>
+                          </div>
                         </form>
                         {/* Mobile: map toggle */}
                         <button
