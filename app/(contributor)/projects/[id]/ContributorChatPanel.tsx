@@ -461,7 +461,7 @@ export function ContributorChatPanel({
                 : 'md:flex-1 md:shrink-0',
               // Mobile
               mobileChatView === 'map'
-                ? 'fixed inset-0 z-40 flex flex-col'
+                ? 'flex flex-col fixed inset-0 z-40 md:relative md:inset-auto md:z-auto'
                 : 'hidden md:flex'
             )}
           >
