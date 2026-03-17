@@ -144,6 +144,17 @@ export function useMap({
 
   const [isLoaded, setIsLoaded] = useState(false)
 
+  // Automatically call map.resize() whenever the container element changes size
+  useEffect(() => {
+    const el = mapContainerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      mapRef.current?.resize()
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
 
@@ -168,16 +179,30 @@ export function useMap({
       // registered via map.on('click', layerId, ...) after addControl().
       // By using a global handler here (before addControl) + queryRenderedFeatures
       // we fire first and resolve the click ourselves.
-      map.on('click', (e: { point: unknown }) => {
+      //
+      // This single handler also calls onMapClick when no feature is hit and
+      // drawing is disabled (guest mode). Using one handler prevents the double-
+      // fire bug where a separate onMapClick handler would clear a feature
+      // selection immediately after onFeatureClick set it.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      map.on('click', (e: any) => {
         const layerIds = Array.from(layerFeatureMapRef.current.keys()).filter((id) => {
           try { return !!map.getLayer(id) } catch { return false }
         })
-        if (layerIds.length === 0) return
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const clicked: any[] = map.queryRenderedFeatures(e.point, { layers: layerIds })
+        const clicked: any[] = layerIds.length > 0
+          ? map.queryRenderedFeatures(e.point, { layers: layerIds })
+          : []
         if (clicked.length > 0) {
           const feature = layerFeatureMapRef.current.get(clicked[0].layer.id)
-          if (feature) onFeatureClickRef.current?.(feature)
+          if (feature) {
+            onFeatureClickRef.current?.(feature)
+            return
+          }
+        }
+        // No feature hit — fire map click (guests use this to drop a pin)
+        if (!drawingEnabled) {
+          onMapClickRef.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng })
         }
       })
 
@@ -212,11 +237,6 @@ export function useMap({
         })
       })
 
-      if (!drawingEnabled) {
-        map.on('click', (e: { lngLat: { lat: number; lng: number } }) => {
-          onMapClickRef.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng })
-        })
-      }
     }
 
     initMap()
@@ -231,6 +251,38 @@ export function useMap({
 
   const flyTo = useCallback((lngLat: [number, number], targetZoom?: number) => {
     mapRef.current?.flyTo({ center: lngLat, zoom: targetZoom ?? 15 })
+  }, [])
+
+  const flyToFeature = useCallback((feature: Feature) => {
+    const map = mapRef.current
+    if (!map) return
+    const geojson = typeof feature.geojson === 'string'
+      ? JSON.parse(feature.geojson)
+      : feature.geojson
+    const type: string = geojson.type
+    if (type === 'Point') {
+      const [lng, lat] = geojson.coordinates as [number, number]
+      map.flyTo({ center: [lng, lat], zoom: 15 })
+    } else {
+      // Compute bounding box for LineString, Polygon, Multi* variants
+      const coords: [number, number][] = []
+      const flatten = (c: unknown) => {
+        if (typeof (c as number[])[0] === 'number') {
+          coords.push(c as [number, number])
+        } else {
+          ;(c as unknown[]).forEach(flatten)
+        }
+      }
+      flatten(geojson.coordinates)
+      if (coords.length === 0) return
+      const lngs = coords.map(([lng]) => lng)
+      const lats = coords.map(([, lat]) => lat)
+      const bbox: [[number, number], [number, number]] = [
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)],
+      ]
+      map.fitBounds(bbox, { padding: 80, maxZoom: 16 })
+    }
   }, [])
 
   const addPin = useCallback((location: Location) => {
@@ -347,6 +399,7 @@ export function useMap({
     mapContainerRef,
     isLoaded,
     flyTo,
+    flyToFeature,
     addPin,
     removePin,
     filterToDataPoints,

@@ -566,6 +566,124 @@ BEGIN
   SET extraction_status = 'complete'
   WHERE id IN (v_conv1_id, v_conv2_id);
 
+  -- ─── 15. Sketches ────────────────────────────────────────────
+  -- Dummy sketches for all six features.
+  -- Images use Lorem Picsum seed-based stable URLs (800×600).
+
+  -- Willamette Promenade Path
+  INSERT INTO public.sketches (project_id, feature_id, perspective_id, image, caption, creator_id) VALUES
+    (v_proj1_id, v_f1_path_id, NULL,
+     'https://picsum.photos/seed/talwa-path-1/800/600',
+     'Elevation View — proposed boardwalk section with canopy trees and accessible railing',
+     v_user_id),
+    (v_proj1_id, v_f1_path_id, NULL,
+     'https://picsum.photos/seed/talwa-path-2/800/600',
+     'Plan View — full 1,800 m route with widened tread and designated cycling lane',
+     v_user_id),
+    (v_proj1_id, v_f1_path_id, NULL,
+     'https://picsum.photos/seed/talwa-path-3/800/600',
+     'Section Detail — cross-section showing drainage, sub-base, and tactile paving strip',
+     v_user_id),
+    (v_proj1_id, v_f1_path_id, NULL,
+     'https://picsum.photos/seed/talwa-path-4/800/600',
+     'Material Study — composite decking, recycled-content aggregate, and permeable edge treatment',
+     v_user_id);
+
+  -- Central Event Plaza
+  INSERT INTO public.sketches (project_id, feature_id, perspective_id, image, caption, creator_id) VALUES
+    (v_proj1_id, v_f1_plaza_id, NULL,
+     'https://picsum.photos/seed/talwa-plaza-1/800/600',
+     'Aerial Plan — flexible event space with removable shade sails and integrated seating walls',
+     v_user_id),
+    (v_proj1_id, v_f1_plaza_id, NULL,
+     'https://picsum.photos/seed/talwa-plaza-2/800/600',
+     'Elevation View — proposed stage and canopy structure facing the river',
+     v_user_id),
+    (v_proj1_id, v_f1_plaza_id, NULL,
+     'https://picsum.photos/seed/talwa-plaza-3/800/600',
+     'Shade Structure Detail — tensile canopy attachment points and drainage',
+     v_user_id),
+    (v_proj1_id, v_f1_plaza_id, NULL,
+     'https://picsum.photos/seed/talwa-plaza-4/800/600',
+     'Paving Pattern Study — large-format concrete pavers with inlaid bronze site map',
+     v_user_id);
+
+  -- River Overlook
+  INSERT INTO public.sketches (project_id, feature_id, perspective_id, image, caption, creator_id) VALUES
+    (v_proj1_id, v_f1_overlook_id, NULL,
+     'https://picsum.photos/seed/talwa-overlook-1/800/600',
+     'Viewshed Diagram — sightlines to downtown skyline and Hawthorne Bridge from overlook platform',
+     v_user_id),
+    (v_proj1_id, v_f1_overlook_id, NULL,
+     'https://picsum.photos/seed/talwa-overlook-2/800/600',
+     'Section Through Overlook — grading, retaining edge, and cantilevered viewing deck',
+     v_user_id),
+    (v_proj1_id, v_f1_overlook_id, NULL,
+     'https://picsum.photos/seed/talwa-overlook-3/800/600',
+     'Railing Detail — cor-ten steel guardrail with interpretive panel cutouts',
+     v_user_id),
+    (v_proj1_id, v_f1_overlook_id, NULL,
+     'https://picsum.photos/seed/talwa-overlook-4/800/600',
+     'Lighting Study — low-level path lighting and uplighting on feature trees',
+     v_user_id);
+
+  -- Division Street Corridor
+  INSERT INTO public.sketches (project_id, feature_id, perspective_id, image, caption, creator_id) VALUES
+    (v_proj2_id, v_f2_corridor_id, NULL,
+     'https://picsum.photos/seed/talwa-corridor-1/800/600',
+     'Street Section — proposed 5-lane to 3-lane conversion with protected bike lanes and wider sidewalks',
+     v_user_id),
+    (v_proj2_id, v_f2_corridor_id, NULL,
+     'https://picsum.photos/seed/talwa-corridor-2/800/600',
+     'Plan View — full corridor from SE 20th to SE 50th with new mid-block crossings marked',
+     v_user_id),
+    (v_proj2_id, v_f2_corridor_id, NULL,
+     'https://picsum.photos/seed/talwa-corridor-3/800/600',
+     'Intersection Detail — protected intersection design at SE 30th with corner refuge islands',
+     v_user_id),
+    (v_proj2_id, v_f2_corridor_id, NULL,
+     'https://picsum.photos/seed/talwa-corridor-4/800/600',
+     'Signal Timing Diagram — leading pedestrian interval and bike-specific signal phase',
+     v_user_id);
+
+  -- Powell Park
+  INSERT INTO public.sketches (project_id, feature_id, perspective_id, image, caption, creator_id) VALUES
+    (v_proj2_id, v_f2_park_id, NULL,
+     'https://picsum.photos/seed/talwa-park-1/800/600',
+     'Site Plan — proposed park improvements including new entry plaza and ADA-compliant path network',
+     v_user_id),
+    (v_proj2_id, v_f2_park_id, NULL,
+     'https://picsum.photos/seed/talwa-park-2/800/600',
+     'Crossing Detail — raised crosswalk at SE 26th with high-visibility markings and curb extensions',
+     v_user_id),
+    (v_proj2_id, v_f2_park_id, NULL,
+     'https://picsum.photos/seed/talwa-park-3/800/600',
+     'Planting Study — native understory mix for park edge buffer along Division Street',
+     v_user_id),
+    (v_proj2_id, v_f2_park_id, NULL,
+     'https://picsum.photos/seed/talwa-park-4/800/600',
+     'Play Area Layout — inclusive play equipment layout with fall-zone clearances',
+     v_user_id);
+
+  -- SE 30th & Division Commercial Node
+  INSERT INTO public.sketches (project_id, feature_id, perspective_id, image, caption, creator_id) VALUES
+    (v_proj2_id, v_f2_node_id, NULL,
+     'https://picsum.photos/seed/talwa-node-1/800/600',
+     'Corner Plaza Plan — proposed parklet and sidewalk widening on the southwest corner',
+     v_user_id),
+    (v_proj2_id, v_f2_node_id, NULL,
+     'https://picsum.photos/seed/talwa-node-2/800/600',
+     'Elevation — active street frontage with bike parking, seating, and shade tree at corner',
+     v_user_id),
+    (v_proj2_id, v_f2_node_id, NULL,
+     'https://picsum.photos/seed/talwa-node-3/800/600',
+     'Paving Detail — contrasting unit pavers delineating the pedestrian zone from the travel lane',
+     v_user_id),
+    (v_proj2_id, v_f2_node_id, NULL,
+     'https://picsum.photos/seed/talwa-node-4/800/600',
+     'Seating Study — movable café-style seating with planters as low-speed traffic buffer',
+     v_user_id);
+
   -- ─── Done ───────────────────────────────────────────────────
   RAISE NOTICE '--------------------------------------------';
   RAISE NOTICE 'Seed complete.';
