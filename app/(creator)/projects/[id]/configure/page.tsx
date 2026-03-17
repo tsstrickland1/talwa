@@ -10,6 +10,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Plus, X, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { ImageUpload } from '@/components/ui/ImageUpload'
+import { storagePaths } from '@/lib/supabase/storage'
 import type { Project } from '@/lib/types'
 
 export default function ConfigurePage() {
@@ -19,6 +21,7 @@ export default function ConfigurePage() {
   const supabase = createClient()
 
   const [project, setProject] = useState<Project | null>(null)
+  const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -29,7 +32,10 @@ export default function ConfigurePage() {
       .eq('id', projectId)
       .single()
       .then(({ data }) => {
-        if (data) setProject(data as Project)
+        if (data) {
+          setProject(data as Project)
+          setFeaturedImageUrl((data as Project).featured_image ?? null)
+        }
       })
   }, [projectId])
 
@@ -48,6 +54,7 @@ export default function ConfigurePage() {
         location: formData.get('location') as string,
         status: formData.get('status') as string,
         publicly_visible: formData.get('publicly_visible') === 'on',
+        featured_image: featuredImageUrl,
       })
       .eq('id', projectId)
 
@@ -76,6 +83,25 @@ export default function ConfigurePage() {
       </h1>
 
       <form onSubmit={handleSave} className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Featured Image</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ImageUpload
+              bucket="project-images"
+              path={storagePaths.featuredImage(projectId, 'jpg')}
+              currentUrl={featuredImageUrl}
+              onUpload={(url) => setFeaturedImageUrl(url)}
+              aspectRatio="wide"
+              label="Upload a featured image"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Displayed on project cards in Explore. Recommended: 1200×400px or wider.
+            </p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Project Details</CardTitle>

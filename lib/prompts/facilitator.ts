@@ -1,10 +1,11 @@
-import type { Project, Feature, AnalyticalFramework, Theme, Location } from '@/lib/types'
+import type { Project, Feature, AnalyticalFramework, Theme, ProjectFile, Location } from '@/lib/types'
 
 export function buildFacilitatorSystemPrompt({
   project,
   features,
   analyticalFramework,
   existingThemes,
+  projectFiles = [],
   location,
   activeFeature,
   contributorDrew = false,
@@ -13,6 +14,7 @@ export function buildFacilitatorSystemPrompt({
   features: Feature[]
   analyticalFramework: AnalyticalFramework | null
   existingThemes: Theme[]
+  projectFiles?: (ProjectFile & { signed_url: string })[]
   location?: Location | null
   activeFeature?: Feature | null
   contributorDrew?: boolean
@@ -24,6 +26,15 @@ export function buildFacilitatorSystemPrompt({
   const researchQuestions = analyticalFramework?.research_questions.length
     ? analyticalFramework.research_questions.map((q, i) => `${i + 1}. ${q}`).join('\n')
     : 'Explore the contributor\'s general experiences and ideas about this project.'
+
+  const filesContext = projectFiles.length > 0
+    ? projectFiles
+        .map(
+          (f) =>
+            `- ${f.name}${f.description ? ` — ${f.description}` : ''}\n  URL: ${f.signed_url}`
+        )
+        .join('\n')
+    : null
 
   const themesContext = existingThemes.length > 0
     ? existingThemes.map(t => `[${t.id}] "${t.name}": ${t.summary}`).join('\n')
@@ -51,7 +62,10 @@ ${featureList}
 RESEARCH QUESTIONS (the topics this project wants to explore — guide conversation toward these naturally):
 ${researchQuestions}
 
-EMERGING COMMUNITY THEMES (what others have been saying — surface relevant ones during conversation using the surface_theme tool):
+${filesContext ? `PROJECT REFERENCE DOCUMENTS (background materials uploaded by the project team — use these to inform your understanding of the project context, but do not quote them verbatim to contributors):
+${filesContext}
+
+` : ''}EMERGING COMMUNITY THEMES (what others have been saying — surface relevant ones during conversation using the surface_theme tool):
 ${themesContext}
 
 YOUR CONVERSATION APPROACH:

@@ -4,7 +4,8 @@ import { getModel, MODELS } from '@/lib/openai'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildFacilitatorSystemPrompt } from '@/lib/prompts'
-import type { FacilitatorRequestBody, Feature } from '@/lib/types'
+import { getSignedFileUrl } from '@/lib/supabase/storage'
+import type { FacilitatorRequestBody, Feature, ProjectFile } from '@/lib/types'
 
 export const maxDuration = 60
 
@@ -22,7 +23,8 @@ export async function POST(req: Request) {
   }
 
   // Load all context in parallel
-  const [projectResult, featuresResult, frameworkResult, themesResult] =
+  const admin = createAdminClient()
+  const [projectResult, featuresResult, frameworkResult, themesResult, filesResult] =
     await Promise.all([
       supabase
         .from('projects')
@@ -42,6 +44,10 @@ export async function POST(req: Request) {
         .from('themes')
         .select('*')
         .eq('project_id', project_id),
+      admin
+        .from('project_files')
+        .select('id, name, file_url, description')
+        .eq('project_id', project_id),
     ])
 
   if (projectResult.error || !projectResult.data) {
@@ -53,11 +59,25 @@ export async function POST(req: Request) {
     ? features.find((f) => f.id === feature_id) ?? null
     : null
 
+  // Generate signed URLs for project files so the facilitator can reference them
+  const rawFiles: ProjectFile[] = (filesResult.data as ProjectFile[]) ?? []
+  const projectFiles = await Promise.all(
+    rawFiles.map(async (f) => {
+      try {
+        const signedUrl = await getSignedFileUrl(admin, f.file_url)
+        return { ...f, signed_url: signedUrl }
+      } catch {
+        return null
+      }
+    })
+  ).then((results) => results.filter(Boolean) as (ProjectFile & { signed_url: string })[])
+
   const systemPrompt = buildFacilitatorSystemPrompt({
     project: projectResult.data,
     features,
     analyticalFramework: frameworkResult.data ?? null,
     existingThemes: themesResult.data ?? [],
+    projectFiles,
     location: location ?? null,
     activeFeature,
     contributorDrew: contributor_drew ?? false,
@@ -66,7 +86,6 @@ export async function POST(req: Request) {
   // Persist the user's message before streaming
   const lastUserMessage = messages[messages.length - 1]
   if (lastUserMessage?.role === 'user') {
-    const admin = createAdminClient()
     await Promise.all([
       admin.from('messages').insert({
         conversation_id,
