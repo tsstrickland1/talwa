@@ -11,6 +11,7 @@ export type ContributorMapHandle = {
   cancelDraw: () => void
   startEditGeometry: (feature: Feature) => void
   stopEditGeometry: (featureId: string) => void
+  flyToFeature: (feature: Feature) => void
 }
 
 type ContributorMapProps = {
@@ -46,7 +47,7 @@ export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapPro
     },
     ref
   ) {
-    const { mapContainerRef, addPin, removePin, addFeatureLayer, removeFeatureLayer, cancelDraw, startEditGeometry, stopEditGeometry } = useMap({
+    const { mapContainerRef, addPin, removePin, addFeatureLayer, removeFeatureLayer, cancelDraw, startEditGeometry, stopEditGeometry, flyToFeature } = useMap({
       mapboxToken,
       center,
       zoom,
@@ -59,12 +60,13 @@ export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapPro
     })
 
     // Expose imperative methods to parent via ref
-    useImperativeHandle(ref, () => ({ addFeatureLayer, removeFeatureLayer, cancelDraw, startEditGeometry, stopEditGeometry }), [
+    useImperativeHandle(ref, () => ({ addFeatureLayer, removeFeatureLayer, cancelDraw, startEditGeometry, stopEditGeometry, flyToFeature }), [
       addFeatureLayer,
       removeFeatureLayer,
       cancelDraw,
       startEditGeometry,
       stopEditGeometry,
+      flyToFeature,
     ])
 
     // Sync pin with activePin state

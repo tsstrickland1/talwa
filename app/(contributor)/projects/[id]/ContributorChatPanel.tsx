@@ -24,6 +24,9 @@ import {
   Copy,
   Check,
   Pencil,
+  Minimize2,
+  Maximize2,
+  ChevronDown,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -36,8 +39,9 @@ import { ChatContainer } from '@/components/chat/ChatContainer'
 import { ThemeSurface } from '@/components/chat/ThemeSurface'
 import { DataPointSurface } from '@/components/chat/DataPointSurface'
 import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
+import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import type { Feature, FeatureGeoJSON, FeatureType, Project, User } from '@/lib/types'
+import type { Feature, FeatureGeoJSON, FeatureType, Project, Sketch, User } from '@/lib/types'
 import type { ContributorMapHandle } from '@/components/map/ContributorMap'
 
 const ContributorMap = dynamic(
@@ -55,6 +59,8 @@ type Props = {
   mapboxToken: string
   creator?: CreatorSummary | null
 }
+
+type FeaturePanelState = 'closed' | 'open' | 'minimized' | 'expanded'
 
 const FEATURE_TYPE_LABELS: Record<FeatureType, string> = {
   path: 'Path / Street',
@@ -89,6 +95,9 @@ export function ContributorChatPanel({
   const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null)
   const [isEditingFeature, setIsEditingFeature] = useState(false)
   const [editingGeometry, setEditingGeometry] = useState<FeatureGeoJSON | null>(null)
+  const [featurePanelState, setFeaturePanelState] = useState<FeaturePanelState>('closed')
+  const [featureSketches, setFeatureSketches] = useState<Sketch[]>([])
+  const [sketchesLoading, setSketchesLoading] = useState(false)
 
   const isGuest = conversationId === null
 
@@ -180,6 +189,10 @@ export function ContributorChatPanel({
     setSelectedFeature(feature)
     setIsEditingFeature(false)
     setEditingGeometry(null)
+    setFeaturePanelState('open')
+    setFeatureSketches([])
+    // Fly after a tick so the panel has begun rendering (ResizeObserver fires map.resize)
+    setTimeout(() => mapRef.current?.flyToFeature(feature), 60)
   }, [pinLocation])
 
   const handleFeatureDismiss = useCallback(() => {
@@ -187,14 +200,18 @@ export function ContributorChatPanel({
     setSelectedFeature(null)
     setIsEditingFeature(false)
     setEditingGeometry(null)
+    setFeaturePanelState('closed')
+    setFeatureSketches([])
   }, [clearPin])
 
   const handleEditStart = useCallback(() => {
     if (!selectedFeature) return
+    // If currently expanded, return to open state so map is visible for geometry editing
+    if (featurePanelState === 'expanded') setFeaturePanelState('open')
     setIsEditingFeature(true)
     setEditingGeometry(null)
     mapRef.current?.startEditGeometry(selectedFeature)
-  }, [selectedFeature])
+  }, [selectedFeature, featurePanelState])
 
   const handleEditCancel = useCallback(() => {
     if (selectedFeature) {
@@ -233,6 +250,30 @@ export function ContributorChatPanel({
     setIsEditingFeature(false)
     setEditingGeometry(null)
   }, [editingGeometry])
+
+  const handlePanelMinimize = useCallback(() => {
+    setFeaturePanelState('minimized')
+  }, [])
+
+  const handlePanelExpand = useCallback(async () => {
+    setFeaturePanelState('expanded')
+    if (!selectedFeature || featureSketches.length > 0) return
+    setSketchesLoading(true)
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('sketches')
+      .select('*')
+      .eq('feature_id', selectedFeature.id)
+    setFeatureSketches((data as Sketch[]) ?? [])
+    setSketchesLoading(false)
+  }, [selectedFeature, featureSketches.length])
+
+  const handlePanelBackToMap = useCallback(() => {
+    setFeaturePanelState('open')
+    setTimeout(() => {
+      if (selectedFeature) mapRef.current?.flyToFeature(selectedFeature)
+    }, 60)
+  }, [selectedFeature])
 
   function handleCopyLink() {
     navigator.clipboard.writeText(window.location.href).then(() => {
@@ -409,71 +450,99 @@ export function ContributorChatPanel({
 
         {/* Map + Chat row */}
         <div className="flex flex-1 min-h-0">
-          {/* Map panel — hidden on mobile unless mobileChatView === 'map' */}
+          {/* ── Map column — hidden on mobile unless map view, or when expanded on desktop ── */}
           <div
             className={cn(
-              'md:relative md:inset-auto md:z-auto md:w-[53%] md:shrink-0 md:border-r md:border-border',
+              'flex flex-col md:border-r md:border-border',
+              // Desktop: flex-1 (takes ~2/3), hidden when expanded (replaced below)
+              featurePanelState === 'expanded'
+                ? 'hidden'
+                : 'md:flex-1 md:shrink-0',
+              // Mobile
               mobileChatView === 'map'
-                ? 'fixed inset-0 z-40'
-                : 'hidden md:block'
+                ? 'fixed inset-0 z-40 flex flex-col'
+                : 'hidden md:flex'
             )}
           >
-            <ContributorMap
-              ref={mapRef}
-              mapboxToken={mapboxToken}
-              center={center}
-              features={featuresState}
-              activePin={activePin}
-              activeFeature={activeFeature}
-              drawingEnabled={!isGuest}
-              onFeatureClick={handleFeatureSelect}
-              onMapClick={(location) => {
-                setSelectedFeature(null)
-                setIsEditingFeature(false)
-                setEditingGeometry(null)
-                pinLocation(location, undefined)
-              }}
-              onFeatureDraw={handleFeatureDraw}
-              onGeometryUpdate={setEditingGeometry}
-              className="h-full"
-            />
-            <DrawFeatureModal
-              open={pendingGeoJSON !== null}
-              projectId={project.id}
-              geojson={pendingGeoJSON}
-              onSave={handleDrawSave}
-              onCancel={handleDrawCancel}
-            />
-            {/* Feature detail / edit panel */}
-            {selectedFeature && (
-              <FeatureDetailOverlay
+            {/* Map fills remaining height above the panel */}
+            <div className="flex-1 min-h-0 relative">
+              <ContributorMap
+                ref={mapRef}
+                mapboxToken={mapboxToken}
+                center={center}
+                features={featuresState}
+                activePin={activePin}
+                activeFeature={activeFeature}
+                drawingEnabled={!isGuest}
+                onFeatureClick={handleFeatureSelect}
+                onMapClick={(location) => {
+                  setSelectedFeature(null)
+                  setIsEditingFeature(false)
+                  setEditingGeometry(null)
+                  setFeaturePanelState('closed')
+                  pinLocation(location, undefined)
+                }}
+                onFeatureDraw={handleFeatureDraw}
+                onGeometryUpdate={setEditingGeometry}
+                className="h-full"
+              />
+              <DrawFeatureModal
+                open={pendingGeoJSON !== null}
+                projectId={project.id}
+                geojson={pendingGeoJSON}
+                onSave={handleDrawSave}
+                onCancel={handleDrawCancel}
+              />
+              {/* Mobile: back to chat button overlaid on map */}
+              {mobileChatView === 'map' && (
+                <button
+                  className="md:hidden absolute top-3 right-3 z-10 bg-background/90 backdrop-blur-sm border border-border rounded-full px-3 py-1.5 text-xs font-medium text-talwa-navy shadow-sm flex items-center gap-1.5 hover:bg-background transition-colors"
+                  onClick={() => setMobileChatView('chat')}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Chat
+                </button>
+              )}
+            </div>
+
+            {/* Feature detail panel — open or minimized states */}
+            {selectedFeature && (featurePanelState === 'open' || featurePanelState === 'minimized') && (
+              <FeatureDetailPanel
                 feature={selectedFeature}
+                state={featurePanelState}
                 isEditing={isEditingFeature}
                 editingGeometry={editingGeometry}
                 canEdit={userId !== null && userId === selectedFeature.creator_id}
+                onMinimize={handlePanelMinimize}
+                onExpand={handlePanelExpand}
                 onDismiss={handleFeatureDismiss}
                 onEditStart={handleEditStart}
                 onEditCancel={handleEditCancel}
                 onEditSave={handleEditSave}
               />
             )}
-            {/* Mobile: back to chat button overlaid on map */}
-            {mobileChatView === 'map' && (
-              <button
-                className="md:hidden absolute top-3 right-3 z-10 bg-background/90 backdrop-blur-sm border border-border rounded-full px-3 py-1.5 text-xs font-medium text-talwa-navy shadow-sm flex items-center gap-1.5 hover:bg-background transition-colors"
-                onClick={() => setMobileChatView('chat')}
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                Chat
-              </button>
-            )}
           </div>
 
-          {/* Chat / Share / About panel */}
+          {/* ── Expanded feature detail — replaces map column on desktop ── */}
+          {featurePanelState === 'expanded' && selectedFeature && (
+            <div className="hidden md:flex flex-col flex-1 shrink-0 border-r border-border overflow-hidden">
+              <FeatureDetailExpanded
+                feature={selectedFeature}
+                sketches={featureSketches}
+                sketchesLoading={sketchesLoading}
+                canEdit={userId !== null && userId === selectedFeature.creator_id}
+                onBackToMap={handlePanelBackToMap}
+                onDismiss={handleFeatureDismiss}
+                onEditStart={handleEditStart}
+              />
+            </div>
+          )}
+
+          {/* ── Chat / Share / About panel ── */}
           <div
             className={cn(
-              'flex flex-col flex-1 min-w-0',
-              mobileChatView === 'map' ? 'hidden md:flex' : 'flex'
+              'flex flex-col min-w-0 md:w-[340px] md:shrink-0',
+              mobileChatView === 'map' ? 'hidden md:flex' : 'flex flex-1'
             )}
           >
             {chatView === 'share' ? (
@@ -777,35 +846,40 @@ export function ContributorChatPanel({
   )
 }
 
-/* ── Feature detail / edit overlay ── */
+/* ── Feature detail panel (open + minimized states) ── */
 
-type FeatureDetailOverlayProps = {
+type FeatureDetailPanelProps = {
   feature: Feature
+  state: 'open' | 'minimized'
   isEditing: boolean
   editingGeometry: FeatureGeoJSON | null
   canEdit: boolean
+  onMinimize: () => void
+  onExpand: () => void
   onDismiss: () => void
   onEditStart: () => void
   onEditCancel: () => void
   onEditSave: (featureId: string, updates: { name: string; type: FeatureType; description: string }) => void
 }
 
-function FeatureDetailOverlay({
+function FeatureDetailPanel({
   feature,
+  state,
   isEditing,
   editingGeometry,
   canEdit,
+  onMinimize,
+  onExpand,
   onDismiss,
   onEditStart,
   onEditCancel,
   onEditSave,
-}: FeatureDetailOverlayProps) {
+}: FeatureDetailPanelProps) {
   const [editName, setEditName] = useState(feature.name)
   const [editType, setEditType] = useState<FeatureType>(feature.type)
   const [editDescription, setEditDescription] = useState(feature.description)
   const [saving, setSaving] = useState(false)
 
-  // Sync form fields when the feature changes (e.g. after save returns updated data)
   const featureId = feature.id
   const prevFeatureIdRef = useRef(featureId)
   if (prevFeatureIdRef.current !== featureId) {
@@ -821,16 +895,45 @@ function FeatureDetailOverlay({
     setSaving(false)
   }
 
+  /* Minimized strip */
+  if (state === 'minimized') {
+    return (
+      <div className="shrink-0 h-10 border-t border-talwa-sky bg-background flex items-center gap-2 px-3">
+        <span className="flex-1 text-sm font-medium text-talwa-navy truncate">{feature.name}</span>
+        <span className="rounded-full bg-talwa-sky px-2 py-0.5 text-[10px] font-medium text-talwa-teal capitalize hidden sm:inline">
+          {FEATURE_TYPE_LABELS[feature.type] ?? feature.type}
+        </span>
+        <button
+          onClick={onExpand}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-talwa-teal hover:bg-accent transition-colors"
+          aria-label="Expand feature detail"
+        >
+          <Maximize2 className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onDismiss}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-talwa-navy hover:bg-accent transition-colors"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    )
+  }
+
+  /* Open state — edit form */
   if (isEditing) {
     return (
-      <div className="absolute bottom-4 left-4 right-4 z-10 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-talwa-sky p-4 space-y-3">
+      <div className="shrink-0 border-t border-talwa-sky bg-white/95 backdrop-blur-sm p-4 space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Edit feature</span>
-          {editingGeometry && (
-            <span className="text-[10px] font-medium text-talwa-teal bg-talwa-sky rounded-full px-2 py-0.5">
-              Geometry updated
-            </span>
-          )}
+          <div className="flex items-center gap-1">
+            {editingGeometry && (
+              <span className="text-[10px] font-medium text-talwa-teal bg-talwa-sky rounded-full px-2 py-0.5">
+                Geometry updated
+              </span>
+            )}
+          </div>
         </div>
 
         <input
@@ -877,9 +980,11 @@ function FeatureDetailOverlay({
     )
   }
 
+  /* Open state — detail view */
   return (
-    <div className="absolute bottom-4 left-4 right-4 z-10 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-talwa-sky p-4">
-      <div className="flex items-start gap-3">
+    <div className="shrink-0 border-t border-talwa-sky bg-white/95 backdrop-blur-sm">
+      {/* Header row */}
+      <div className="flex items-start gap-2 px-4 pt-3 pb-2">
         <div className="flex-1 min-w-0">
           <h3 className="font-heading font-semibold text-talwa-navy text-sm leading-tight truncate">
             {feature.name}
@@ -887,12 +992,87 @@ function FeatureDetailOverlay({
           <span className="inline-block mt-1 rounded-full bg-talwa-sky px-2 py-0.5 text-[10px] font-medium text-talwa-teal capitalize">
             {FEATURE_TYPE_LABELS[feature.type] ?? feature.type}
           </span>
-          {feature.description && (
-            <p className="mt-2 text-xs text-muted-foreground leading-relaxed line-clamp-3">
-              {feature.description}
-            </p>
-          )}
         </div>
+        <div className="flex items-center gap-1 shrink-0 pt-0.5">
+          <button
+            onClick={onMinimize}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-talwa-teal hover:bg-accent transition-colors"
+            aria-label="Minimize"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onExpand}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-talwa-teal hover:bg-accent transition-colors"
+            aria-label="Expand to full view"
+          >
+            <Maximize2 className="w-4 h-4" />
+          </button>
+          {canEdit && (
+            <button
+              onClick={onEditStart}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-talwa-teal hover:bg-accent transition-colors"
+              aria-label="Edit feature"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={onDismiss}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-talwa-navy hover:bg-accent transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Description */}
+      {feature.description && (
+        <p className="px-4 pb-3 text-xs text-muted-foreground leading-relaxed line-clamp-3">
+          {feature.description}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/* ── Feature detail expanded (replaces map column) ── */
+
+type FeatureDetailExpandedProps = {
+  feature: Feature
+  sketches: Sketch[]
+  sketchesLoading: boolean
+  canEdit: boolean
+  onBackToMap: () => void
+  onDismiss: () => void
+  onEditStart: () => void
+}
+
+function FeatureDetailExpanded({
+  feature,
+  sketches,
+  sketchesLoading,
+  canEdit,
+  onBackToMap,
+  onDismiss,
+  onEditStart,
+}: FeatureDetailExpandedProps) {
+  return (
+    <div className="flex flex-col h-full bg-talwa-cream">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 h-12 border-b border-border shrink-0 bg-background">
+        <button
+          onClick={onBackToMap}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-talwa-teal transition-colors shrink-0"
+          aria-label="Back to map"
+        >
+          <Minimize2 className="w-4 h-4" />
+          <span className="hidden sm:inline">Back to Map</span>
+        </button>
+        <h2 className="flex-1 font-heading font-semibold text-talwa-navy text-sm truncate ml-2">
+          {feature.name}
+        </h2>
         <div className="flex items-center gap-1 shrink-0">
           {canEdit && (
             <button
@@ -910,6 +1090,61 @@ function FeatureDetailOverlay({
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+      </div>
+
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        {/* Type + description */}
+        <div>
+          <span className="inline-block rounded-full bg-talwa-sky px-2.5 py-0.5 text-xs font-medium text-talwa-teal capitalize">
+            {FEATURE_TYPE_LABELS[feature.type] ?? feature.type}
+          </span>
+          {feature.description && (
+            <p className="mt-3 text-sm text-talwa-navy leading-relaxed">
+              {feature.description}
+            </p>
+          )}
+        </div>
+
+        {/* Sketches */}
+        <div>
+          <h3 className="font-heading text-base font-semibold text-talwa-navy mb-3">Sketches</h3>
+          {sketchesLoading ? (
+            <div className="grid grid-cols-2 gap-3">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="aspect-video rounded-lg bg-muted animate-pulse" />
+              ))}
+            </div>
+          ) : sketches.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No sketches yet for this feature.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {sketches.map((sketch) => (
+                <div key={sketch.id} className="rounded-lg overflow-hidden border border-border bg-background">
+                  {sketch.image ? (
+                    <div className="relative aspect-video">
+                      <Image
+                        src={sketch.image}
+                        alt={sketch.caption || 'Sketch'}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="aspect-video bg-muted flex items-center justify-center">
+                      <span className="text-xs text-muted-foreground">No image</span>
+                    </div>
+                  )}
+                  {sketch.caption && (
+                    <p className="px-2.5 py-2 text-xs text-talwa-navy leading-snug">
+                      {sketch.caption}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
