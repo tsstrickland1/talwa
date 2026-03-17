@@ -1,14 +1,7 @@
 'use client'
 
 import { useRef, useCallback } from 'react'
-import {
-  PlusCircle,
-  Camera,
-  MapPin,
-  Navigation,
-  Sparkles,
-  ChevronRight,
-} from 'lucide-react'
+import { PlusCircle, Camera, MapPin, Navigation, Sparkles } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +21,7 @@ interface ChatPlusMenuProps {
   onUseMyLocation: () => void
   onTagFeature: (feature: Feature) => void
   onPhotoSelected: (file: File) => void
-  onVisualize: (featureId: string) => void
+  onVisualize: (feature: Feature) => void
 }
 
 export function ChatPlusMenu({
@@ -85,7 +78,6 @@ export function ChatPlusMenu({
               <DropdownMenuSubTrigger className="gap-2.5">
                 <MapPin className="w-4 h-4 text-muted-foreground" />
                 <span>Tag a feature</span>
-                <ChevronRight className="ml-auto w-3.5 h-3.5 text-muted-foreground" />
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-52 max-h-64 overflow-y-auto">
                 {features.map((feature) => (
@@ -117,7 +109,7 @@ export function ChatPlusMenu({
           {/* Visualize */}
           {activeFeature ? (
             <DropdownMenuItem
-              onSelect={() => onVisualize(activeFeature.id)}
+              onSelect={() => onVisualize(activeFeature)}
               className="gap-2.5"
             >
               <Sparkles className="w-4 h-4 text-talwa-teal" />
@@ -128,13 +120,12 @@ export function ChatPlusMenu({
               <DropdownMenuSubTrigger className="gap-2.5">
                 <Sparkles className="w-4 h-4 text-talwa-teal" />
                 <span className="text-talwa-teal font-medium">Visualize…</span>
-                <ChevronRight className="ml-auto w-3.5 h-3.5 text-muted-foreground" />
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-52 max-h-64 overflow-y-auto">
                 {features.map((feature) => (
                   <DropdownMenuItem
                     key={feature.id}
-                    onSelect={() => onVisualize(feature.id)}
+                    onSelect={() => onVisualize(feature)}
                     className="gap-2"
                   >
                     <span className="truncate">{feature.name}</span>

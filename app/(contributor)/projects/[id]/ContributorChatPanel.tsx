@@ -40,7 +40,7 @@ import { ChatContainer } from '@/components/chat/ChatContainer'
 import { ThemeSurface } from '@/components/chat/ThemeSurface'
 import { DataPointSurface } from '@/components/chat/DataPointSurface'
 import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu'
-import { SketchSurface } from '@/components/chat/SketchSurface'
+import { SketchWizard } from '@/components/chat/SketchWizard'
 import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
 import { createClient } from '@/lib/supabase/client'
 import { uploadImage, storagePaths, getFileExtension } from '@/lib/supabase/storage'
@@ -104,8 +104,7 @@ export function ContributorChatPanel({
   const [sketchesLoading, setSketchesLoading] = useState(false)
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
-  const [pendingSketch, setPendingSketch] = useState<Sketch | null>(null)
-  const [isGeneratingSketch, setIsGeneratingSketch] = useState(false)
+  const [wizardFeature, setWizardFeature] = useState<Feature | null>(null)
 
   const isGuest = conversationId === null
 
@@ -348,29 +347,19 @@ export function ContributorChatPanel({
     [conversationId]
   )
 
-  const handleVisualize = useCallback(
-    async (featureId: string) => {
-      const feature = featuresState.find((f) => f.id === featureId)
-      if (!feature) return
-      setIsGeneratingSketch(true)
-      try {
-        const prompt =
-          `An architectural concept sketch of ${feature.name}, a ${feature.type} in ${project.location}. ${feature.description}`.trim()
-        const res = await fetch('/api/images', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, feature_id: featureId, project_id: project.id }),
-        })
-        if (!res.ok) throw new Error('Image generation failed')
-        const { sketch } = (await res.json()) as { sketch: Sketch }
-        setPendingSketch(sketch)
-      } catch (err) {
-        console.error('Visualize failed:', err)
-      } finally {
-        setIsGeneratingSketch(false)
-      }
+  const handleOpenWizard = useCallback(
+    (feature: Feature) => {
+      setWizardFeature(feature)
     },
-    [featuresState, project]
+    []
+  )
+
+  const handleWizardPublished = useCallback(
+    (sketch: Sketch) => {
+      // Surface the newly published sketch in the feature panel's sketch gallery
+      setFeatureSketches((prev) => [sketch, ...prev])
+    },
+    []
   )
 
   const center: [number, number] =
@@ -587,6 +576,15 @@ export function ContributorChatPanel({
                 onSave={handleDrawSave}
                 onCancel={handleDrawCancel}
               />
+              {wizardFeature && conversationId && (
+                <SketchWizard
+                  feature={wizardFeature}
+                  projectId={project.id}
+                  conversationId={conversationId}
+                  onClose={() => setWizardFeature(null)}
+                  onPublished={handleWizardPublished}
+                />
+              )}
               {/* Mobile: back to chat button overlaid on map */}
               {mobileChatView === 'map' && (
                 <button
@@ -825,21 +823,7 @@ export function ContributorChatPanel({
                     className="flex-1 min-h-0"
                     hideInput
                     bottomSlot={
-                      pendingSketch ? (
-                        <SketchSurface
-                          sketch={pendingSketch}
-                          featureName={
-                            featuresState.find((f) => f.id === pendingSketch.feature_id)
-                              ?.name
-                          }
-                          onDismiss={() => setPendingSketch(null)}
-                        />
-                      ) : isGeneratingSketch ? (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 px-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Generating sketch…</span>
-                        </div>
-                      ) : surfacedContent?.type === 'theme' ? (
+                      surfacedContent?.type === 'theme' ? (
                         <ThemeSurface theme={null} onDismiss={clearSurface} />
                       ) : surfacedContent?.type === 'data_point' ? (
                         <DataPointSurface dataPoint={null} onDismiss={clearSurface} />
@@ -916,7 +900,7 @@ export function ContributorChatPanel({
                               onUseMyLocation={handleUseMyLocation}
                               onTagFeature={handleTagFeature}
                               onPhotoSelected={handlePhotoSelected}
-                              onVisualize={handleVisualize}
+                              onVisualize={handleOpenWizard}
                             />
                             <textarea
                               ref={textareaRef}
