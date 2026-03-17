@@ -412,8 +412,10 @@ export function ContributorChatPanel({
           {/* Map panel — hidden on mobile unless mobileChatView === 'map' */}
           <div
             className={cn(
-              'relative w-full md:w-[53%] shrink-0 border-r border-border',
-              mobileChatView === 'map' ? 'block' : 'hidden md:block'
+              'md:relative md:inset-auto md:z-auto md:w-[53%] md:shrink-0 md:border-r md:border-border',
+              mobileChatView === 'map'
+                ? 'fixed inset-0 z-40'
+                : 'hidden md:block'
             )}
           >
             <ContributorMap
