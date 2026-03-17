@@ -46,6 +46,7 @@ export default async function ContributorProjectPage({ params }: Props) {
           project={project as Project}
           features={(features ?? []) as Feature[]}
           conversationId={null}
+          userId={null}
           mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
           creator={(creator ?? null) as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
         />
@@ -85,6 +86,7 @@ export default async function ContributorProjectPage({ params }: Props) {
           project={project as Project}
           features={(features ?? []) as Feature[]}
           conversationId={existing.id}
+          userId={authUser.id}
           mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
           creator={(creator ?? null) as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
         />
@@ -98,6 +100,7 @@ export default async function ContributorProjectPage({ params }: Props) {
         project={project as Project}
         features={(features ?? []) as Feature[]}
         conversationId={conversation.id}
+        userId={authUser.id}
         mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
         creator={(creator ?? null) as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
       />

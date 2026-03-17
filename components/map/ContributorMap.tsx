@@ -9,6 +9,8 @@ export type ContributorMapHandle = {
   addFeatureLayer: (feature: Feature) => void
   removeFeatureLayer: (featureId: string) => void
   cancelDraw: () => void
+  startEditGeometry: (feature: Feature) => void
+  stopEditGeometry: (featureId: string) => void
 }
 
 type ContributorMapProps = {
@@ -17,11 +19,13 @@ type ContributorMapProps = {
   zoom?: number
   features: Feature[]
   activePin: Location | null
+  activeFeature?: Feature | null
   drawingEnabled?: boolean
   className?: string
   onFeatureClick?: (feature: Feature) => void
   onMapClick?: (location: Location) => void
   onFeatureDraw?: (geojson: FeatureGeoJSON) => void
+  onGeometryUpdate?: (geojson: FeatureGeoJSON) => void
 }
 
 export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapProps>(
@@ -32,15 +36,17 @@ export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapPro
       zoom,
       features,
       activePin,
+      activeFeature,
       drawingEnabled = false,
       className,
       onFeatureClick,
       onMapClick,
       onFeatureDraw,
+      onGeometryUpdate,
     },
     ref
   ) {
-    const { mapContainerRef, addPin, removePin, addFeatureLayer, removeFeatureLayer, cancelDraw } = useMap({
+    const { mapContainerRef, addPin, removePin, addFeatureLayer, removeFeatureLayer, cancelDraw, startEditGeometry, stopEditGeometry } = useMap({
       mapboxToken,
       center,
       zoom,
@@ -49,13 +55,16 @@ export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapPro
       onFeatureClick,
       onMapClick,
       onFeatureDraw,
+      onGeometryUpdate,
     })
 
     // Expose imperative methods to parent via ref
-    useImperativeHandle(ref, () => ({ addFeatureLayer, removeFeatureLayer, cancelDraw }), [
+    useImperativeHandle(ref, () => ({ addFeatureLayer, removeFeatureLayer, cancelDraw, startEditGeometry, stopEditGeometry }), [
       addFeatureLayer,
       removeFeatureLayer,
       cancelDraw,
+      startEditGeometry,
+      stopEditGeometry,
     ])
 
     // Sync pin with activePin state
@@ -70,7 +79,7 @@ export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapPro
     return (
       <div className={cn('relative w-full h-full', className)}>
         <div ref={mapContainerRef} className="w-full h-full" />
-        {activePin && (
+        {activePin && !activeFeature && (
           <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-talwa-navy shadow-sm border border-talwa-sky">
             Pin dropped · {activePin.lat.toFixed(4)}, {activePin.lng.toFixed(4)}
           </div>

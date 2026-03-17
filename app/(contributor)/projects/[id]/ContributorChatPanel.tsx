@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Copy,
   Check,
+  Pencil,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -30,13 +31,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useFacilitator } from '@/hooks/useFacilitator'
+import { useFacilitator, computeCentroid } from '@/hooks/useFacilitator'
 import { ChatContainer } from '@/components/chat/ChatContainer'
 import { ThemeSurface } from '@/components/chat/ThemeSurface'
 import { DataPointSurface } from '@/components/chat/DataPointSurface'
 import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
 import { cn } from '@/lib/utils'
-import type { Feature, FeatureGeoJSON, Project, User } from '@/lib/types'
+import type { Feature, FeatureGeoJSON, FeatureType, Project, User } from '@/lib/types'
 import type { ContributorMapHandle } from '@/components/map/ContributorMap'
 
 const ContributorMap = dynamic(
@@ -50,14 +51,26 @@ type Props = {
   project: Project
   features: Feature[]
   conversationId: string | null
+  userId: string | null
   mapboxToken: string
   creator?: CreatorSummary | null
 }
+
+const FEATURE_TYPE_LABELS: Record<FeatureType, string> = {
+  path: 'Path / Street',
+  park: 'Park / Green Space',
+  plaza: 'Plaza / Square',
+  landmark: 'Landmark',
+  other: 'Other',
+}
+
+const FEATURE_TYPES = Object.entries(FEATURE_TYPE_LABELS) as [FeatureType, string][]
 
 export function ContributorChatPanel({
   project,
   features: initialFeatures,
   conversationId,
+  userId,
   mapboxToken,
   creator,
 }: Props) {
@@ -73,6 +86,9 @@ export function ContributorChatPanel({
   const [showAuthGate, setShowAuthGate] = useState(false)
   const [featuresState, setFeaturesState] = useState<Feature[]>(initialFeatures)
   const [pendingGeoJSON, setPendingGeoJSON] = useState<FeatureGeoJSON | null>(null)
+  const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null)
+  const [isEditingFeature, setIsEditingFeature] = useState(false)
+  const [editingGeometry, setEditingGeometry] = useState<FeatureGeoJSON | null>(null)
 
   const isGuest = conversationId === null
 
@@ -83,9 +99,11 @@ export function ContributorChatPanel({
     handleSubmit,
     isLoading,
     activePin,
+    activeFeature,
     surfacedContent,
     historyLoaded,
     pinLocation,
+    clearPin,
     clearSurface,
     append,
     activateDrawnFeature,
@@ -152,6 +170,69 @@ export function ContributorChatPanel({
     mapRef.current?.cancelDraw()
     setPendingGeoJSON(null)
   }, [])
+
+  const handleFeatureSelect = useCallback((feature: Feature) => {
+    const geojson: FeatureGeoJSON =
+      typeof feature.geojson === 'string'
+        ? (JSON.parse(feature.geojson) as FeatureGeoJSON)
+        : (feature.geojson as unknown as FeatureGeoJSON)
+    pinLocation(computeCentroid(geojson), feature)
+    setSelectedFeature(feature)
+    setIsEditingFeature(false)
+    setEditingGeometry(null)
+  }, [pinLocation])
+
+  const handleFeatureDismiss = useCallback(() => {
+    clearPin()
+    setSelectedFeature(null)
+    setIsEditingFeature(false)
+    setEditingGeometry(null)
+  }, [clearPin])
+
+  const handleEditStart = useCallback(() => {
+    if (!selectedFeature) return
+    setIsEditingFeature(true)
+    setEditingGeometry(null)
+    mapRef.current?.startEditGeometry(selectedFeature)
+  }, [selectedFeature])
+
+  const handleEditCancel = useCallback(() => {
+    if (selectedFeature) {
+      mapRef.current?.stopEditGeometry(selectedFeature.id)
+    }
+    setIsEditingFeature(false)
+    setEditingGeometry(null)
+  }, [selectedFeature])
+
+  const handleEditSave = useCallback(async (
+    featureId: string,
+    updates: { name: string; type: FeatureType; description: string }
+  ) => {
+    const body: Record<string, unknown> = { ...updates }
+    if (editingGeometry) body.geojson = editingGeometry
+
+    mapRef.current?.stopEditGeometry(featureId)
+
+    const res = await fetch(`/api/features?id=${featureId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) return
+
+    const updated = await res.json() as Feature
+
+    setFeaturesState((prev) => prev.map((f) => (f.id === featureId ? updated : f)))
+
+    if (editingGeometry) {
+      mapRef.current?.removeFeatureLayer(featureId)
+      setTimeout(() => mapRef.current?.addFeatureLayer(updated), 50)
+    }
+
+    setSelectedFeature(updated)
+    setIsEditingFeature(false)
+    setEditingGeometry(null)
+  }, [editingGeometry])
 
   function handleCopyLink() {
     navigator.clipboard.writeText(window.location.href).then(() => {
@@ -341,14 +422,17 @@ export function ContributorChatPanel({
               center={center}
               features={featuresState}
               activePin={activePin}
+              activeFeature={activeFeature}
               drawingEnabled={!isGuest}
-              onFeatureClick={(feature) => {
-                pinLocation({ lat: 0, lng: 0 }, feature)
-              }}
+              onFeatureClick={handleFeatureSelect}
               onMapClick={(location) => {
+                setSelectedFeature(null)
+                setIsEditingFeature(false)
+                setEditingGeometry(null)
                 pinLocation(location, undefined)
               }}
               onFeatureDraw={handleFeatureDraw}
+              onGeometryUpdate={setEditingGeometry}
               className="h-full"
             />
             <DrawFeatureModal
@@ -358,6 +442,19 @@ export function ContributorChatPanel({
               onSave={handleDrawSave}
               onCancel={handleDrawCancel}
             />
+            {/* Feature detail / edit panel */}
+            {selectedFeature && (
+              <FeatureDetailOverlay
+                feature={selectedFeature}
+                isEditing={isEditingFeature}
+                editingGeometry={editingGeometry}
+                canEdit={userId !== null && userId === selectedFeature.creator_id}
+                onDismiss={handleFeatureDismiss}
+                onEditStart={handleEditStart}
+                onEditCancel={handleEditCancel}
+                onEditSave={handleEditSave}
+              />
+            )}
             {/* Mobile: back to chat button overlaid on map */}
             {mobileChatView === 'map' && (
               <button
@@ -674,6 +771,145 @@ export function ContributorChatPanel({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/* ── Feature detail / edit overlay ── */
+
+type FeatureDetailOverlayProps = {
+  feature: Feature
+  isEditing: boolean
+  editingGeometry: FeatureGeoJSON | null
+  canEdit: boolean
+  onDismiss: () => void
+  onEditStart: () => void
+  onEditCancel: () => void
+  onEditSave: (featureId: string, updates: { name: string; type: FeatureType; description: string }) => void
+}
+
+function FeatureDetailOverlay({
+  feature,
+  isEditing,
+  editingGeometry,
+  canEdit,
+  onDismiss,
+  onEditStart,
+  onEditCancel,
+  onEditSave,
+}: FeatureDetailOverlayProps) {
+  const [editName, setEditName] = useState(feature.name)
+  const [editType, setEditType] = useState<FeatureType>(feature.type)
+  const [editDescription, setEditDescription] = useState(feature.description)
+  const [saving, setSaving] = useState(false)
+
+  // Sync form fields when the feature changes (e.g. after save returns updated data)
+  const featureId = feature.id
+  const prevFeatureIdRef = useRef(featureId)
+  if (prevFeatureIdRef.current !== featureId) {
+    prevFeatureIdRef.current = featureId
+    setEditName(feature.name)
+    setEditType(feature.type)
+    setEditDescription(feature.description)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    await onEditSave(feature.id, { name: editName, type: editType, description: editDescription })
+    setSaving(false)
+  }
+
+  if (isEditing) {
+    return (
+      <div className="absolute bottom-4 left-4 right-4 z-10 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-talwa-sky p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Edit feature</span>
+          {editingGeometry && (
+            <span className="text-[10px] font-medium text-talwa-teal bg-talwa-sky rounded-full px-2 py-0.5">
+              Geometry updated
+            </span>
+          )}
+        </div>
+
+        <input
+          value={editName}
+          onChange={(e) => setEditName(e.target.value)}
+          placeholder="Feature name"
+          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-talwa-navy outline-none focus:border-talwa-teal transition-colors"
+        />
+
+        <select
+          value={editType}
+          onChange={(e) => setEditType(e.target.value as FeatureType)}
+          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-talwa-navy outline-none focus:border-talwa-teal transition-colors"
+        >
+          {FEATURE_TYPES.map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+
+        <textarea
+          value={editDescription}
+          onChange={(e) => setEditDescription(e.target.value)}
+          placeholder="Description (optional)"
+          rows={2}
+          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-talwa-navy outline-none resize-none focus:border-talwa-teal transition-colors"
+        />
+
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            onClick={handleSave}
+            disabled={saving || !editName.trim()}
+            className="flex-1 rounded-full bg-talwa-teal text-white text-sm font-medium py-2 hover:bg-talwa-teal/90 disabled:opacity-40 transition-colors"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button
+            onClick={onEditCancel}
+            className="flex-1 rounded-full border border-border text-talwa-navy text-sm font-medium py-2 hover:bg-accent transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="absolute bottom-4 left-4 right-4 z-10 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-talwa-sky p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-heading font-semibold text-talwa-navy text-sm leading-tight truncate">
+            {feature.name}
+          </h3>
+          <span className="inline-block mt-1 rounded-full bg-talwa-sky px-2 py-0.5 text-[10px] font-medium text-talwa-teal capitalize">
+            {FEATURE_TYPE_LABELS[feature.type] ?? feature.type}
+          </span>
+          {feature.description && (
+            <p className="mt-2 text-xs text-muted-foreground leading-relaxed line-clamp-3">
+              {feature.description}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {canEdit && (
+            <button
+              onClick={onEditStart}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-talwa-teal hover:bg-accent transition-colors"
+              aria-label="Edit feature"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={onDismiss}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-talwa-navy hover:bg-accent transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

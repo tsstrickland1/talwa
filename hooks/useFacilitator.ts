@@ -12,7 +12,7 @@ export type SurfacedContent =
   | null
 
 // Compute bbox centroid of a GeoJSON geometry as a best-effort location for the pin.
-function computeCentroid(geojson: FeatureGeoJSON): Location {
+export function computeCentroid(geojson: FeatureGeoJSON): Location {
   type Coord = [number, number]
 
   function collectCoords(g: FeatureGeoJSON): Coord[] {
