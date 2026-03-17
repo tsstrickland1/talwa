@@ -1,4 +1,5 @@
 import { streamText, tool } from 'ai'
+import type { CoreMessage } from 'ai'
 import { z } from 'zod'
 import { getModel, MODELS } from '@/lib/openai'
 import { createClient as createServerClient } from '@/lib/supabase/server'
@@ -114,7 +115,7 @@ export async function POST(req: Request) {
   const result = streamText({
     model: getModel(MODELS.facilitator),
     system: systemPrompt,
-    messages,
+    messages: messages as CoreMessage[],
     tools: {
       reset_location: tool({
         description:
