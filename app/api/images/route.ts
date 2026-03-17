@@ -44,8 +44,10 @@ export async function POST(req: NextRequest) {
       const refBuffer = Buffer.from(await refResponse.arrayBuffer())
       const refFile = await toFile(refBuffer, 'reference.png', { type: 'image/png' })
 
+      // dall-e-3 doesn't support images.edit(); use dall-e-2 for reference-guided generation.
+      // When MODELS.imageGen is updated to gpt-image-1 this branch can use that model instead.
       const editResponse = await openai.images.edit({
-        model: MODELS.imageGen,
+        model: 'dall-e-2',
         image: refFile,
         prompt,
         n: 1,

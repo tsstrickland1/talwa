@@ -40,7 +40,8 @@ import { ChatContainer } from '@/components/chat/ChatContainer'
 import { ThemeSurface } from '@/components/chat/ThemeSurface'
 import { DataPointSurface } from '@/components/chat/DataPointSurface'
 import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu'
-import { SketchWizard } from '@/components/chat/SketchWizard'
+import { SketchWorkspace } from '@/components/chat/SketchWorkspace'
+import { VisualizeNudge } from '@/components/chat/VisualizeNudge'
 import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
 import { createClient } from '@/lib/supabase/client'
 import { uploadImage, storagePaths, getFileExtension } from '@/lib/supabase/storage'
@@ -104,7 +105,8 @@ export function ContributorChatPanel({
   const [sketchesLoading, setSketchesLoading] = useState(false)
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
-  const [wizardFeature, setWizardFeature] = useState<Feature | null>(null)
+  const [sketchFeature, setSketchFeature] = useState<Feature | null>(null)
+  const [showVisualizeNudge, setShowVisualizeNudge] = useState(false)
 
   const isGuest = conversationId === null
 
@@ -347,20 +349,19 @@ export function ContributorChatPanel({
     [conversationId]
   )
 
-  const handleOpenWizard = useCallback(
-    (feature: Feature) => {
-      setWizardFeature(feature)
-    },
-    []
-  )
+  const handleOpenSketchWorkspace = useCallback((feature: Feature) => {
+    setShowVisualizeNudge(false)
+    setSketchFeature(feature)
+  }, [])
 
-  const handleWizardPublished = useCallback(
-    (sketch: Sketch) => {
-      // Surface the newly published sketch in the feature panel's sketch gallery
-      setFeatureSketches((prev) => [sketch, ...prev])
-    },
-    []
-  )
+  const handleVisualizeNoFeature = useCallback(() => {
+    setSketchFeature(null)
+    setShowVisualizeNudge(true)
+  }, [])
+
+  const handleSketchPublished = useCallback((sketch: Sketch) => {
+    setFeatureSketches((prev: Sketch[]) => [sketch, ...prev])
+  }, [])
 
   const center: [number, number] =
     project.lng != null && project.lat != null
@@ -576,15 +577,6 @@ export function ContributorChatPanel({
                 onSave={handleDrawSave}
                 onCancel={handleDrawCancel}
               />
-              {wizardFeature && conversationId && (
-                <SketchWizard
-                  feature={wizardFeature}
-                  projectId={project.id}
-                  conversationId={conversationId}
-                  onClose={() => setWizardFeature(null)}
-                  onPublished={handleWizardPublished}
-                />
-              )}
               {/* Mobile: back to chat button overlaid on map */}
               {mobileChatView === 'map' && (
                 <button
@@ -823,7 +815,23 @@ export function ContributorChatPanel({
                     className="flex-1 min-h-0"
                     hideInput
                     bottomSlot={
-                      surfacedContent?.type === 'theme' ? (
+                      sketchFeature && conversationId ? (
+                        <SketchWorkspace
+                          feature={sketchFeature}
+                          projectId={project.id}
+                          conversationId={conversationId}
+                          onClose={() => setSketchFeature(null)}
+                          onPublished={handleSketchPublished}
+                        />
+                      ) : showVisualizeNudge ? (
+                        <VisualizeNudge
+                          onGoToMap={() => {
+                            setShowVisualizeNudge(false)
+                            setMobileChatView('map')
+                          }}
+                          onDismiss={() => setShowVisualizeNudge(false)}
+                        />
+                      ) : surfacedContent?.type === 'theme' ? (
                         <ThemeSurface theme={null} onDismiss={clearSurface} />
                       ) : surfacedContent?.type === 'data_point' ? (
                         <DataPointSurface dataPoint={null} onDismiss={clearSurface} />
@@ -900,7 +908,8 @@ export function ContributorChatPanel({
                               onUseMyLocation={handleUseMyLocation}
                               onTagFeature={handleTagFeature}
                               onPhotoSelected={handlePhotoSelected}
-                              onVisualize={handleOpenWizard}
+                              onVisualize={handleOpenSketchWorkspace}
+                              onVisualizeNoFeature={handleVisualizeNoFeature}
                             />
                             <textarea
                               ref={textareaRef}
