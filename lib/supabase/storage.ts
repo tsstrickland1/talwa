@@ -15,6 +15,11 @@ export const storagePaths = {
     return `${userId}/avatar.${ext}`
   },
 
+  /** avatars/{user_id}/org-{profile_id}.jpg — org profile avatar uploaded by this user */
+  orgAvatar(userId: string, profileId: string): string {
+    return `${userId}/org-${profileId}.jpg`
+  },
+
   /** project-images/{project_id}/featured.{ext} — overwrites on update */
   featuredImage(projectId: string, ext: string): string {
     return `${projectId}/featured.${ext}`

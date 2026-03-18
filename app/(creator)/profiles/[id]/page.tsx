@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { ImageUpload } from '@/components/ui/ImageUpload'
+import { storagePaths } from '@/lib/supabase/storage'
 import type { CreatorProfile } from '@/lib/types'
 
 export default function ProfileEditPage() {
@@ -17,27 +19,40 @@ export default function ProfileEditPage() {
   const supabase = createClient()
 
   const [profile, setProfile] = useState<CreatorProfile | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase
-      .from('creator_profiles')
-      .select('*')
-      .eq('id', id)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          const p = data as CreatorProfile
-          setProfile(p)
-          setName(p.name)
-          setDescription(p.description ?? '')
-        }
-      })
+    async function load() {
+      const [{ data: { user } }, { data: profileData }] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.from('creator_profiles').select('*').eq('id', id).single(),
+      ])
+      if (user) setUserId(user.id)
+      if (profileData) {
+        const p = profileData as CreatorProfile
+        setProfile(p)
+        setName(p.name)
+        setDescription(p.description ?? '')
+        setAvatarUrl(p.avatar)
+      }
+    }
+    load()
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleAvatarUpload(url: string) {
+    setAvatarUrl(url)
+    await fetch(`/api/creator-profiles/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ avatar: url }),
+    })
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -64,7 +79,7 @@ export default function ProfileEditPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  if (!profile) {
+  if (!profile || !userId) {
     return (
       <div className="p-4 md:p-6">
         <div className="animate-pulse space-y-4">
@@ -82,6 +97,24 @@ export default function ProfileEditPage() {
       </h1>
 
       <form onSubmit={handleSave} className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Profile Photo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="max-w-[160px]">
+              <ImageUpload
+                bucket="avatars"
+                path={storagePaths.avatar(userId, 'jpg')}
+                currentUrl={avatarUrl}
+                onUpload={handleAvatarUpload}
+                aspectRatio="square"
+                label="Upload photo"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Profile Details</CardTitle>

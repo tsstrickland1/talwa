@@ -33,80 +33,20 @@ export default function NewOrganizationPage() {
     const name = formData.get('name') as string
     const description = formData.get('description') as string
 
-    // Generate slug from name
-    let slug = name
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
+    const res = await fetch('/api/organizations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description }),
+    })
 
-    if (!slug) slug = `org-${Date.now()}`
-
-    // Create the creator profile
-    const { data: profile, error: profileError } = await supabase
-      .from('creator_profiles')
-      .insert({
-        type: 'organization',
-        name,
-        slug,
-        description: description ?? '',
-      })
-      .select('id')
-      .single()
-
-    if (profileError || !profile) {
-      // Handle slug conflict
-      if (profileError?.code === '23505') {
-        slug = `${slug}-${Date.now().toString(36)}`
-        const { data: retry, error: retryError } = await supabase
-          .from('creator_profiles')
-          .insert({
-            type: 'organization',
-            name,
-            slug,
-            description: description ?? '',
-          })
-          .select('id')
-          .single()
-
-        if (retryError || !retry) {
-          setError(retryError?.message ?? 'Failed to create organization')
-          setIsLoading(false)
-          return
-        }
-
-        // Add current user as owner
-        await supabase.from('organization_members').insert({
-          creator_profile_id: retry.id,
-          user_id: user.id,
-          role: 'owner',
-        })
-
-        router.push(`/organizations/${retry.id}`)
-        return
-      }
-
-      setError(profileError?.message ?? 'Failed to create organization')
+    if (!res.ok) {
+      setError(await res.text() || 'Failed to create organization')
       setIsLoading(false)
       return
     }
 
-    // Add current user as owner
-    const { error: memberError } = await supabase
-      .from('organization_members')
-      .insert({
-        creator_profile_id: profile.id,
-        user_id: user.id,
-        role: 'owner',
-      })
-
-    if (memberError) {
-      setError('Organization created but failed to set you as owner')
-      setIsLoading(false)
-      return
-    }
-
-    router.push(`/organizations/${profile.id}`)
+    const { id } = await res.json() as { id: string }
+    router.push(`/organizations/${id}`)
   }
 
   return (
