@@ -1,5 +1,6 @@
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { userCanManageProject } from '@/lib/supabase/permissions'
 import type { FeatureGeoJSON, FeatureType } from '@/lib/types'
 
 export async function POST(req: Request) {
@@ -28,9 +29,9 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient()
 
-  // Determine whether caller is the project creator or a contributor
-  const [projectResult, accessResult] = await Promise.all([
-    admin.from('projects').select('creator_id').eq('id', project_id).single(),
+  // Determine whether caller is a project manager or a contributor
+  const [isManager, accessResult] = await Promise.all([
+    userCanManageProject(admin, user.id, project_id),
     admin
       .from('project_access')
       .select('permissions')
@@ -39,19 +40,14 @@ export async function POST(req: Request) {
       .maybeSingle(),
   ])
 
-  if (!projectResult.data) {
-    return new Response('Project not found', { status: 404 })
-  }
-
-  const isCreator = projectResult.data.creator_id === user.id
   const isContributor =
     accessResult.data?.permissions?.includes('contribute') ?? false
 
-  if (!isCreator && !isContributor) {
+  if (!isManager && !isContributor) {
     return new Response('Forbidden', { status: 403 })
   }
 
-  const source = isCreator ? 'creator' : 'contributor'
+  const source = isManager ? 'creator' : 'contributor'
 
   // Try inserting with source column (requires migration 0006).
   // Fall back to inserting without it in case the migration hasn't been applied yet.
@@ -123,7 +119,7 @@ export async function PATCH(req: Request) {
 
   const admin = createAdminClient()
 
-  // Only project creator or the feature's creator can edit
+  // Only project manager or the feature's creator can edit
   const { data: feature } = await admin
     .from('features')
     .select('creator_id, project_id')
@@ -134,16 +130,10 @@ export async function PATCH(req: Request) {
     return new Response('Not found', { status: 404 })
   }
 
-  const { data: project } = await admin
-    .from('projects')
-    .select('creator_id')
-    .eq('id', feature.project_id)
-    .single()
-
-  const isProjectCreator = project?.creator_id === user.id
+  const isProjectManager = await userCanManageProject(admin, user.id, feature.project_id)
   const isFeatureOwner = feature.creator_id === user.id
 
-  if (!isProjectCreator && !isFeatureOwner) {
+  if (!isProjectManager && !isFeatureOwner) {
     return new Response('Forbidden', { status: 403 })
   }
 
@@ -190,7 +180,6 @@ export async function DELETE(req: Request) {
 
   const admin = createAdminClient()
 
-  // Select only columns that exist regardless of migration state
   const { data: feature } = await admin
     .from('features')
     .select('creator_id, project_id')
@@ -201,17 +190,11 @@ export async function DELETE(req: Request) {
     return new Response('Not found', { status: 404 })
   }
 
-  const { data: project } = await admin
-    .from('projects')
-    .select('creator_id')
-    .eq('id', feature.project_id)
-    .single()
-
-  // Project creator can delete any feature; feature owner can delete their own
-  const isProjectCreator = project?.creator_id === user.id
+  // Project manager can delete any feature; feature owner can delete their own
+  const isProjectManager = await userCanManageProject(admin, user.id, feature.project_id)
   const isFeatureOwner = feature.creator_id === user.id
 
-  if (!isProjectCreator && !isFeatureOwner) {
+  if (!isProjectManager && !isFeatureOwner) {
     return new Response('Forbidden', { status: 403 })
   }
 

@@ -55,7 +55,7 @@ There are two primary user experiences:
     /projects/[id]      → Project detail + contributor chat + map
   /(creator)
     /dashboard          → Creator home
-    /projects/new       → Create project
+    /projects/new       → Create project (with profile selector)
     /projects/[id]
       /insights         → Analyst bot + insights map
       /features         → Manage map features
@@ -64,13 +64,16 @@ There are two primary user experiences:
       /sketches         → Community sketches
       /updates          → Post project updates
       /configure        → Edit project settings, frameworks, files
+    /organizations/new  → Create organization
+    /organizations/[id] → Organization overview + projects
+      /members          → Manage org members + invitations
 /components
   /map                  → Mapbox components
   /chat                 → Chat UI components (facilitator + analyst)
   /cards                → ThemeCard, DataPointCard, SketchCard
   /ui                   → shadcn/ui base components
 /lib
-  /supabase             → Client, server, and admin Supabase instances
+  /supabase             → Client, server, admin instances + permissions helpers
   /openai               → OpenAI client setup
   /prompts              → All system prompts (facilitator, analysis workflows)
   /types                → TypeScript types mirroring DB schema
@@ -222,6 +225,34 @@ type User = {
   user_type: 'community_contributor' | 'project_creator' | 'admin'
 }
 
+type CreatorProfile = {
+  id: string
+  type: 'individual' | 'organization'
+  name: string
+  slug: string                      // URL-safe identifier for public profile
+  avatar: string | null
+  description: string
+  created_at: string
+}
+
+type OrganizationMember = {
+  id: string
+  creator_profile_id: string
+  user_id: string
+  role: 'owner' | 'admin' | 'member'
+  created_at: string
+}
+
+type OrganizationInvitation = {
+  id: string
+  creator_profile_id: string
+  invitee_email: string
+  role: 'admin' | 'member'
+  status: 'pending' | 'accepted' | 'expired' | 'declined'
+  expiration: string
+  created_at: string
+}
+
 type Project = {
   id: string
   name: string
@@ -232,8 +263,8 @@ type Project = {
   status: 'draft' | 'active' | 'completed' | 'archived'
   location: string
   publicly_visible: boolean
-  creator_id: string
-  dialogue_framework: string[]     // Guiding questions for the facilitator
+  creator_profile_id: string        // References creator_profiles, not users
+  dialogue_framework: string[]      // Guiding questions for the facilitator
   created_at: string
 }
 
@@ -501,3 +532,8 @@ authorization manually inside the function (verify the key matches `Deno.env.get
 - Prefer explicit types from `/lib/types` over inferring from Supabase generated types
 - `publish_image` is server-side only — never expose image generation as a client tool
 - All map components must use `dynamic(() => import(...), { ssr: false })` to prevent SSR crashes
+- Projects are owned by **creator profiles** (individual or organization), not directly by users
+- Use `userCanManageProject()` from `/lib/supabase/permissions` for ownership checks in API routes
+- `creator_id` on most tables (features, messages, conversations, data_points, etc.) is **user attribution** — it stays as `users.id`
+- `creator_profile_id` on projects is **ownership** — it references `creator_profiles.id`
+- Individual creator profiles are auto-created when a user first creates a project (via `getOrCreateIndividualProfile`)

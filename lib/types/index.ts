@@ -14,6 +14,38 @@ export type User = {
   user_type: 'community_contributor' | 'project_creator' | 'admin'
 }
 
+export type CreatorProfileType = 'individual' | 'organization'
+
+export type CreatorProfile = {
+  id: string
+  type: CreatorProfileType
+  name: string
+  slug: string
+  avatar: string | null
+  description: string
+  created_at: string
+}
+
+export type OrganizationMemberRole = 'owner' | 'admin' | 'member'
+
+export type OrganizationMember = {
+  id: string
+  creator_profile_id: string
+  user_id: string
+  role: OrganizationMemberRole
+  created_at: string
+}
+
+export type OrganizationInvitation = {
+  id: string
+  creator_profile_id: string
+  invitee_email: string
+  role: 'admin' | 'member'
+  status: 'pending' | 'accepted' | 'expired' | 'declined'
+  expiration: string
+  created_at: string
+}
+
 export type Project = {
   id: string
   name: string
@@ -30,7 +62,9 @@ export type Project = {
   /** WGS84 longitude, populated via /api/admin/geocode-projects */
   lng: number | null
   publicly_visible: boolean
-  creator_id: string
+  creator_profile_id: string
+  /** @deprecated Use creator_profile_id. Kept during migration rollout. */
+  creator_id?: string
   dialogue_framework: string[]
   created_at: string
 }
@@ -189,6 +223,9 @@ export type NotificationType = Notification['type']
 export type InvitationStatus = Invitation['status']
 export type UserType = User['user_type']
 export type FeatureType = Feature['type']
+export type CreatorProfileTypeUnion = CreatorProfile['type']
+export type OrganizationMemberRoleUnion = OrganizationMember['role']
+export type OrganizationInvitationStatus = OrganizationInvitation['status']
 
 // ─── API Request / Response Shapes ───────────────────────────────────────────
 

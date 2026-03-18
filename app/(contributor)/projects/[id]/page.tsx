@@ -32,11 +32,23 @@ export default async function ContributorProjectPage({ params }: Props) {
     .select('*')
     .eq('project_id', id)
 
-  const { data: creator } = await admin
-    .from('users')
-    .select('id, name_first, name_last, avatar')
-    .eq('id', project.creator_id)
+  // Resolve creator profile for display
+  const { data: creatorProfile } = await admin
+    .from('creator_profiles')
+    .select('id, name, avatar')
+    .eq('id', project.creator_profile_id)
     .single()
+
+  // Build a creator object compatible with the existing UI
+  const nameParts = (creatorProfile?.name ?? '').split(' ')
+  const creator = creatorProfile
+    ? {
+        id: creatorProfile.id,
+        name_first: nameParts[0] ?? '',
+        name_last: nameParts.slice(1).join(' '),
+        avatar: creatorProfile.avatar,
+      }
+    : null
 
   // If user is not authenticated, render the panel without a conversation
   if (!authUser) {
@@ -48,7 +60,7 @@ export default async function ContributorProjectPage({ params }: Props) {
           conversationId={null}
           userId={null}
           mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
-          creator={(creator ?? null) as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
+          creator={creator as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
         />
       </div>
     )
@@ -88,7 +100,7 @@ export default async function ContributorProjectPage({ params }: Props) {
           conversationId={existing.id}
           userId={authUser.id}
           mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
-          creator={(creator ?? null) as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
+          creator={creator as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
         />
       </div>
     )
@@ -102,7 +114,7 @@ export default async function ContributorProjectPage({ params }: Props) {
         conversationId={conversation.id}
         userId={authUser.id}
         mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
-        creator={(creator ?? null) as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
+        creator={creator as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
       />
     </div>
   )

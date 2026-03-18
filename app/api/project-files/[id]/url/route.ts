@@ -1,6 +1,7 @@
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSignedFileUrl } from '@/lib/supabase/storage'
+import { userCanManageProject } from '@/lib/supabase/permissions'
 
 /**
  * GET /api/project-files/[id]/url
@@ -38,13 +39,9 @@ export async function GET(
     return new Response('Not found', { status: 404 })
   }
 
-  // Verify caller is a project member
-  const [projectResult, accessResult] = await Promise.all([
-    admin
-      .from('projects')
-      .select('creator_id')
-      .eq('id', file.project_id)
-      .single(),
+  // Verify caller is a project manager or member
+  const [isManager, accessResult] = await Promise.all([
+    userCanManageProject(admin, user.id, file.project_id),
     admin
       .from('project_access')
       .select('id')
@@ -53,10 +50,9 @@ export async function GET(
       .maybeSingle(),
   ])
 
-  const isCreator = projectResult.data?.creator_id === user.id
   const isMember = !!accessResult.data
 
-  if (!isCreator && !isMember) {
+  if (!isManager && !isMember) {
     return new Response('Forbidden', { status: 403 })
   }
 

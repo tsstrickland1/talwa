@@ -2,7 +2,9 @@ import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ProjectCard } from '@/components/cards/ProjectCard'
-import type { Project, User } from '@/lib/types'
+import { Badge } from '@/components/ui/badge'
+import { Users } from 'lucide-react'
+import type { Project, CreatorProfile } from '@/lib/types'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -12,26 +14,50 @@ export default async function CreatorProfilePage({ params }: Props) {
   const { id } = await params
   const admin = createAdminClient()
 
-  const { data: creator } = await admin
-    .from('users')
+  // Try to find by slug first, then by ID
+  let { data: profile } = await admin
+    .from('creator_profiles')
     .select('*')
-    .eq('id', id)
+    .eq('slug', id)
     .single()
 
-  if (!creator || (creator.user_type !== 'project_creator' && creator.user_type !== 'admin')) {
-    notFound()
+  if (!profile) {
+    const { data: byId } = await admin
+      .from('creator_profiles')
+      .select('*')
+      .eq('id', id)
+      .single()
+    profile = byId
   }
+
+  if (!profile) notFound()
+
+  const typedProfile = profile as CreatorProfile
 
   const { data: projects } = await admin
     .from('projects')
     .select('*')
-    .eq('creator_id', id)
+    .eq('creator_profile_id', typedProfile.id)
     .eq('publicly_visible', true)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
 
-  const user = creator as User
-  const initials = `${user.name_first[0] ?? ''}${user.name_last[0] ?? ''}`.toUpperCase()
+  // For organizations, get member count
+  let memberCount = 0
+  if (typedProfile.type === 'organization') {
+    const { count } = await admin
+      .from('organization_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('creator_profile_id', typedProfile.id)
+    memberCount = count ?? 0
+  }
+
+  const initials = typedProfile.name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ backgroundColor: '#FAFAEF' }}>
@@ -40,8 +66,8 @@ export default async function CreatorProfilePage({ params }: Props) {
         <div className="mx-auto max-w-2xl flex flex-col items-center text-center gap-4">
           {/* Avatar */}
           <div className="relative w-20 h-20 rounded-full overflow-hidden border-2 border-border shadow-sm">
-            {user.avatar ? (
-              <Image src={user.avatar} alt={initials} fill className="object-cover" />
+            {typedProfile.avatar ? (
+              <Image src={typedProfile.avatar} alt={initials} fill className="object-cover" />
             ) : (
               <div
                 className="w-full h-full flex items-center justify-center text-2xl font-bold"
@@ -58,12 +84,26 @@ export default async function CreatorProfilePage({ params }: Props) {
               className="font-heading text-3xl font-bold"
               style={{ color: '#031D25' }}
             >
-              {user.name_first} {user.name_last}
+              {typedProfile.name}
             </h1>
-            <p className="text-sm mt-1" style={{ color: 'rgba(3,29,37,0.55)' }}>
-              Project Creator
-            </p>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <Badge variant="secondary">
+                {typedProfile.type === 'organization' ? 'Organization' : 'Creator'}
+              </Badge>
+              {typedProfile.type === 'organization' && memberCount > 0 && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Users className="h-3 w-3" />
+                  {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                </span>
+              )}
+            </div>
           </div>
+
+          {typedProfile.description && (
+            <p className="text-sm max-w-md" style={{ color: 'rgba(3,29,37,0.6)' }}>
+              {typedProfile.description}
+            </p>
+          )}
         </div>
       </section>
 
