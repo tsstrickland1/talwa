@@ -61,10 +61,18 @@ export default async function ContributorProjectPage({ params }: Props) {
           userId={null}
           mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
           creator={creator as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
+          currentUser={null}
         />
       </div>
     )
   }
+
+  // Fetch the logged-in contributor's full user record for the user menu
+  const { data: userProfile } = await admin
+    .from('users')
+    .select('*')
+    .eq('id', authUser.id)
+    .single()
 
   // Create or find existing conversation for this user + project
   const { data: conversation, error } = await admin
@@ -101,6 +109,7 @@ export default async function ContributorProjectPage({ params }: Props) {
           userId={authUser.id}
           mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
           creator={creator as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
+          currentUser={(userProfile as User) ?? null}
         />
       </div>
     )
@@ -115,6 +124,7 @@ export default async function ContributorProjectPage({ params }: Props) {
         userId={authUser.id}
         mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
         creator={creator as Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'> | null}
+        currentUser={(userProfile as User) ?? null}
       />
     </div>
   )

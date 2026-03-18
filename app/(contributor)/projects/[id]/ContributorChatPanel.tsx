@@ -29,6 +29,7 @@ import {
   ChevronDown,
   Loader2,
   FileText,
+  LogOut,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -44,6 +45,7 @@ import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu'
 import { TagFeaturePrompt } from '@/components/chat/TagFeaturePrompt'
 import { SketchWorkspace } from '@/components/chat/SketchWizard'
 import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
+import { NavUserMenu } from '@/components/layout/NavUserMenu'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Feature, FeatureGeoJSON, FeatureType, Project, Sketch, User } from '@/lib/types'
@@ -63,6 +65,7 @@ type Props = {
   userId: string | null
   mapboxToken: string
   creator?: CreatorSummary | null
+  currentUser?: User | null
 }
 
 type FeaturePanelState = 'closed' | 'open' | 'minimized' | 'expanded'
@@ -120,6 +123,7 @@ export function ContributorChatPanel({
   userId,
   mapboxToken,
   creator,
+  currentUser,
 }: Props) {
   const router = useRouter()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -147,6 +151,13 @@ export function ContributorChatPanel({
   const [pendingTagFeature, setPendingTagFeature] = useState(false)
 
   const isGuest = conversationId === null
+
+  async function handleSignOut() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
 
   const {
     messages,
@@ -611,6 +622,23 @@ export function ContributorChatPanel({
                 <span>Explore</span>
               </Link>
             </nav>
+            {currentUser && (
+              <div className="mt-auto border-t border-border px-3 py-3 flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-talwa-navy truncate">
+                    {currentUser.name_first} {currentUser.name_last}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="p-1.5 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-talwa-navy shrink-0"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -638,6 +666,7 @@ export function ContributorChatPanel({
           <h1 className="font-heading font-semibold text-talwa-navy text-lg flex-1 truncate">
             {project.name}
           </h1>
+          {currentUser && <NavUserMenu user={currentUser} />}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
