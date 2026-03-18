@@ -78,10 +78,10 @@ export async function queryVectorStore(
     max_num_results: maxResults,
   })
 
-  type TextBlock = { type: 'text'; text: { value: string } }
+  type TextBlock = { type: 'text'; text: string }
   return response.data.flatMap((result) =>
-    (result.content as Array<{ type: string; text?: { value: string } }>)
+    (result.content as unknown as Array<{ type: string; text?: string }>)
       .filter((block): block is TextBlock => block.type === 'text' && block.text != null)
-      .map((block) => block.text.value.slice(0, 800))
+      .map((block) => block.text.slice(0, 800))
   )
 }
