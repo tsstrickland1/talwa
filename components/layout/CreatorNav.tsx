@@ -104,6 +104,7 @@ export function CreatorNav({ user, projects = [], creatorProfiles = [] }: Creato
   const currentOrg = creatorProfiles.find((p) => p.id === orgIdFromPath && p.type === 'organization')
   const orgNavItems = currentOrg
     ? [
+        { label: 'Overview', href: `/organizations/${currentOrg.id}`, icon: Building2 },
         { label: 'Members', href: `/organizations/${currentOrg.id}/members`, icon: Users },
         { label: 'Settings', href: `/organizations/${currentOrg.id}/settings`, icon: Settings },
       ]

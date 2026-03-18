@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -10,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
-import { UserPlus, Trash2, Shield, ShieldCheck } from 'lucide-react'
+import { UserPlus, Trash2, Shield, ShieldCheck, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { OrganizationMember, OrganizationInvitation } from '@/lib/types'
 
@@ -26,11 +27,11 @@ type MemberWithUser = OrganizationMember & {
 
 export default function OrgMembersPage() {
   const params = useParams<{ id: string }>()
-  const router = useRouter()
   const orgId = params.id
 
   const [members, setMembers] = useState<MemberWithUser[]>([])
   const [invitations, setInvitations] = useState<OrganizationInvitation[]>([])
+  const [orgName, setOrgName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member')
   const [isInviting, setIsInviting] = useState(false)
@@ -44,7 +45,7 @@ export default function OrgMembersPage() {
     } = await supabase.auth.getUser()
     if (user) setCurrentUserId(user.id)
 
-    const [membersResult, invitationsResult] = await Promise.all([
+    const [membersResult, invitationsResult, orgResult] = await Promise.all([
       supabase
         .from('organization_members')
         .select('*, user:users(id, name_first, name_last, email, avatar)')
@@ -56,10 +57,16 @@ export default function OrgMembersPage() {
         .eq('creator_profile_id', orgId)
         .eq('status', 'pending')
         .order('created_at', { ascending: false }),
+      supabase
+        .from('creator_profiles')
+        .select('name')
+        .eq('id', orgId)
+        .single(),
     ])
 
     setMembers((membersResult.data ?? []) as MemberWithUser[])
     setInvitations((invitationsResult.data ?? []) as OrganizationInvitation[])
+    if (orgResult.data) setOrgName(orgResult.data.name)
   }, [orgId])
 
   useEffect(() => {
@@ -129,6 +136,16 @@ export default function OrgMembersPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
+      {orgName && (
+        <Link
+          href={`/organizations/${orgId}`}
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-talwa-navy transition-colors mb-6 w-fit"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back to {orgName}
+        </Link>
+      )}
+
       <h1 className="font-heading text-3xl font-bold text-talwa-navy mb-6">
         Organization Members
       </h1>
