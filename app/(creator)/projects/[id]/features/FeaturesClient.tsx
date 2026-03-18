@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { ChevronLeft, Trash2, Pencil } from 'lucide-react'
+import { ChevronLeft, Trash2, Pencil, Map as MapIcon, List } from 'lucide-react'
 import { useMap } from '@/hooks/useMap'
 import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
 import type { Feature, FeatureGeoJSON, FeatureType } from '@/lib/types'
@@ -29,6 +29,7 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
   const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editingGeometry, setEditingGeometry] = useState<FeatureGeoJSON | null>(null)
+  const [mobileView, setMobileView] = useState<'map' | 'list'>('map')
 
   // Keep a stable ref to selectedFeature so the draw-delete callback can access it
   const selectedFeatureRef = useRef<Feature | null>(null)
@@ -40,6 +41,7 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
     setSelectedFeature(feature)
     setIsEditing(false)
     setEditingGeometry(null)
+    setMobileView('map')
   }, [])
 
   const handleFeatureDraw = useCallback((geojson: FeatureGeoJSON) => {
@@ -141,48 +143,93 @@ export function FeaturesClient({ projectId, initialFeatures, mapboxToken, center
     }
   }
 
+  const mapPanel = (
+    <div className="relative w-full h-full">
+      <div ref={mapContainerRef} className="w-full h-full" />
+      {selectedFeature && (
+        <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-talwa-navy shadow-sm border border-talwa-sky">
+          Feature selected
+        </div>
+      )}
+      <DrawFeatureModal
+        open={pendingGeoJSON !== null}
+        projectId={projectId}
+        geojson={pendingGeoJSON}
+        onSave={handleDrawSave}
+        onCancel={handleDrawCancel}
+      />
+    </div>
+  )
+
+  const listPanel = (
+    <div className="overflow-y-auto p-5 flex flex-col gap-4 h-full">
+      {selectedFeature ? (
+        isEditing ? (
+          <EditPanel
+            feature={selectedFeature}
+            hasGeometryChanges={editingGeometry !== null}
+            onSave={handleEditSave}
+            onCancel={handleEditCancel}
+          />
+        ) : (
+          <DetailPanel
+            feature={selectedFeature}
+            onBack={() => setSelectedFeature(null)}
+            onEdit={handleEditStart}
+            onDelete={handleDeleteById}
+          />
+        )
+      ) : (
+        <FeatureList features={features} onSelect={(f) => { handleFeatureClick(f); setMobileView('map') }} />
+      )}
+    </div>
+  )
+
   return (
-    <div className="flex flex-1 min-h-0 h-full">
-      {/* Map panel */}
-      <div className="relative w-[60%] shrink-0 border-r border-border">
-        <div ref={mapContainerRef} className="w-full h-full" />
-        {selectedFeature && (
-          <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-talwa-navy shadow-sm border border-talwa-sky">
-            Feature selected
-          </div>
-        )}
-        <DrawFeatureModal
-          open={pendingGeoJSON !== null}
-          projectId={projectId}
-          geojson={pendingGeoJSON}
-          onSave={handleDrawSave}
-          onCancel={handleDrawCancel}
-        />
+    <>
+      {/* Mobile: toggle layout (below 768px) */}
+      <div className="flex flex-col md:hidden h-[calc(100vh-3.5rem)]">
+        {/* Toggle strip */}
+        <div className="flex shrink-0 border-b border-border bg-background">
+          <button
+            onClick={() => setMobileView('map')}
+            className={`flex items-center gap-1.5 flex-1 justify-center py-2.5 text-sm font-medium transition-colors ${
+              mobileView === 'map'
+                ? 'text-talwa-teal border-b-2 border-talwa-teal'
+                : 'text-muted-foreground hover:text-talwa-navy'
+            }`}
+          >
+            <MapIcon className="h-4 w-4" />
+            Map
+          </button>
+          <button
+            onClick={() => setMobileView('list')}
+            className={`flex items-center gap-1.5 flex-1 justify-center py-2.5 text-sm font-medium transition-colors ${
+              mobileView === 'list'
+                ? 'text-talwa-teal border-b-2 border-talwa-teal'
+                : 'text-muted-foreground hover:text-talwa-navy'
+            }`}
+          >
+            <List className="h-4 w-4" />
+            Features
+          </button>
+        </div>
+        {/* Panel */}
+        <div className="flex-1 min-h-0">
+          {mobileView === 'map' ? mapPanel : listPanel}
+        </div>
       </div>
 
-      {/* Right panel */}
-      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
-        {selectedFeature ? (
-          isEditing ? (
-            <EditPanel
-              feature={selectedFeature}
-              hasGeometryChanges={editingGeometry !== null}
-              onSave={handleEditSave}
-              onCancel={handleEditCancel}
-            />
-          ) : (
-            <DetailPanel
-              feature={selectedFeature}
-              onBack={() => setSelectedFeature(null)}
-              onEdit={handleEditStart}
-              onDelete={handleDeleteById}
-            />
-          )
-        ) : (
-          <FeatureList features={features} onSelect={handleFeatureClick} />
-        )}
+      {/* Desktop: split layout (768px and above) */}
+      <div className="hidden md:flex flex-1 min-h-0 h-full">
+        <div className="relative w-[60%] shrink-0 border-r border-border">
+          {mapPanel}
+        </div>
+        <div className="flex-1">
+          {listPanel}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 

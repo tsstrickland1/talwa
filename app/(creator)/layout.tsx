@@ -60,7 +60,7 @@ export default async function CreatorLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen overflow-hidden">
       <CreatorNav
         user={profile as User}
         projects={projects}
