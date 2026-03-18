@@ -683,13 +683,13 @@ export function ContributorChatPanel({
                   </button>
                   <span className="text-sm font-medium text-talwa-navy">Share</span>
                 </div>
-                <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col gap-5">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-6 flex flex-col gap-5">
                   <div>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                       Project link
                     </p>
-                    <div className="flex items-center gap-2 bg-background rounded-lg border border-border px-3 py-2.5">
-                      <span className="text-sm text-talwa-navy flex-1 truncate">
+                    <div className="flex items-center gap-2 min-w-0 bg-background rounded-lg border border-border px-3 py-2.5">
+                      <span className="text-sm text-talwa-navy flex-1 truncate min-w-0">
                         {typeof window !== 'undefined' ? window.location.href : ''}
                       </span>
                       <button
