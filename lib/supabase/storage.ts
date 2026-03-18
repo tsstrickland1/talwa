@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ─── Buckets ──────────────────────────────────────────────────────────────────
 
-export type PublicBucket = 'avatars' | 'project-images' | 'sketches'
+export type PublicBucket = 'avatars' | 'project-images' | 'sketches' | 'conversation-attachments'
 export type PrivateBucket = 'project-files'
 export type StorageBucket = PublicBucket | PrivateBucket
 
@@ -33,6 +33,11 @@ export const storagePaths = {
   /** project-files/{project_id}/{timestamp}-{filename} */
   projectFile(projectId: string, filename: string): string {
     return `${projectId}/${Date.now()}-${filename}`
+  },
+
+  /** conversation-attachments/{conversationId}/{timestamp}.{ext} */
+  conversationAttachment(conversationId: string, ext: string): string {
+    return `${conversationId}/${Date.now()}.${ext}`
   },
 }
 

@@ -94,6 +94,14 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Prevent mobile browsers from zooming on input focus (triggered when font-size < 16px).
+     !important is required to override Tailwind utility classes (e.g. text-sm). */
+  @media (pointer: coarse) {
+    input, textarea, select {
+      font-size: 16px !important;
+    }
+  }
+
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Fraunces', Georgia, serif;
   }

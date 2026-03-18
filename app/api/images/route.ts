@@ -4,13 +4,13 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { MODELS } from '@/lib/openai'
 import { z } from 'zod'
+import { toFile } from 'openai'
 
 const requestSchema = z.object({
   prompt: z.string().min(10).max(1000),
   feature_id: z.string().uuid(),
   project_id: z.string().uuid(),
-  perspective_id: z.string().uuid().optional(),
-  caption: z.string().max(500).optional(),
+  reference_image_url: z.string().url().optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -30,24 +30,47 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { prompt, feature_id, project_id, perspective_id, caption } = parsed.data
+  const { prompt, feature_id, project_id, reference_image_url } = parsed.data
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
   try {
-    const response = await openai.images.generate({
-      model: MODELS.imageGen,
-      prompt,
-      n: 1,
-      size: '1024x1024',
-      response_format: 'b64_json',
-    })
+    let imageData: string
 
-    if (!response.data || response.data.length === 0) throw new Error('No image data returned')
-    const imageData = response.data[0].b64_json
-    if (!imageData) throw new Error('No image data returned')
+    if (reference_image_url) {
+      // Fetch the reference image and use edit mode
+      const refResponse = await fetch(reference_image_url)
+      if (!refResponse.ok) throw new Error('Failed to fetch reference image')
+      const refBuffer = Buffer.from(await refResponse.arrayBuffer())
+      const refFile = await toFile(refBuffer, 'reference.png', { type: 'image/png' })
 
-    // Upload to Supabase Storage
+      // dall-e-3 doesn't support images.edit(); use dall-e-2 for reference-guided generation.
+      // When MODELS.imageGen is updated to gpt-image-1 this branch can use that model instead.
+      const editResponse = await openai.images.edit({
+        model: 'dall-e-2',
+        image: refFile,
+        prompt,
+        n: 1,
+        size: '1024x1024',
+        response_format: 'b64_json',
+      })
+
+      if (!editResponse.data?.[0]?.b64_json) throw new Error('No image data returned')
+      imageData = editResponse.data[0].b64_json
+    } else {
+      const genResponse = await openai.images.generate({
+        model: MODELS.imageGen,
+        prompt,
+        n: 1,
+        size: '1024x1024',
+        response_format: 'b64_json',
+      })
+
+      if (!genResponse.data?.[0]?.b64_json) throw new Error('No image data returned')
+      imageData = genResponse.data[0].b64_json
+    }
+
+    // Upload to Supabase Storage — not yet committed to DB
     const admin = createAdminClient()
     const fileName = `sketches/${project_id}/${user.id}/${Date.now()}.png`
     const buffer = Buffer.from(imageData, 'base64')
@@ -63,23 +86,8 @@ export async function POST(req: NextRequest) {
 
     const { data: urlData } = admin.storage.from('sketches').getPublicUrl(fileName)
 
-    // Create sketch record
-    const { data: sketch, error: insertError } = await admin
-      .from('sketches')
-      .insert({
-        project_id,
-        feature_id,
-        perspective_id: perspective_id ?? null,
-        image: urlData.publicUrl,
-        caption: caption ?? '',
-        creator_id: user.id,
-      })
-      .select()
-      .single()
-
-    if (insertError) throw insertError
-
-    return Response.json({ sketch })
+    // Return the URL only — caller decides whether to publish to DB
+    return Response.json({ image_url: urlData.publicUrl, feature_id, project_id })
   } catch (error) {
     console.error('Image generation failed:', error)
     return Response.json({ error: 'Image generation failed' }, { status: 500 })

@@ -33,10 +33,10 @@ export function ChatContainer({
 }: ChatContainerProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive or a widget is inserted
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length, isLoading])
+  }, [messages.length, isLoading, bottomSlot])
 
   return (
     <div className={cn('flex flex-col h-full', className)}>

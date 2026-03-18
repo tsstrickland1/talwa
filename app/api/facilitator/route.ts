@@ -1,4 +1,5 @@
 import { streamText, tool } from 'ai'
+import type { CoreMessage } from 'ai'
 import { z } from 'zod'
 import { getModel, MODELS } from '@/lib/openai'
 import { createClient as createServerClient } from '@/lib/supabase/server'
@@ -86,11 +87,20 @@ export async function POST(req: Request) {
   // Persist the user's message before streaming
   const lastUserMessage = messages[messages.length - 1]
   if (lastUserMessage?.role === 'user') {
+    // content may be a string or an array of content blocks (e.g. when an image is attached)
+    const contentText =
+      typeof lastUserMessage.content === 'string'
+        ? lastUserMessage.content
+        : lastUserMessage.content
+            .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+            .map((b) => b.text)
+            .join(' ')
+
     await Promise.all([
       admin.from('messages').insert({
         conversation_id,
         sender: 'human',
-        content: lastUserMessage.content,
+        content: contentText,
         referenced_feature_ids: feature_id ? [feature_id] : [],
         location: location ?? null,
         creator_id: user.id,
@@ -105,7 +115,7 @@ export async function POST(req: Request) {
   const result = streamText({
     model: getModel(MODELS.facilitator),
     system: systemPrompt,
-    messages,
+    messages: messages as CoreMessage[],
     tools: {
       reset_location: tool({
         description:

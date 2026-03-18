@@ -27,6 +27,7 @@ import {
   Minimize2,
   Maximize2,
   ChevronDown,
+  Loader2,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -38,8 +39,12 @@ import { useFacilitator, computeCentroid } from '@/hooks/useFacilitator'
 import { ChatContainer } from '@/components/chat/ChatContainer'
 import { ThemeSurface } from '@/components/chat/ThemeSurface'
 import { DataPointSurface } from '@/components/chat/DataPointSurface'
+import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu'
+import { TagFeaturePrompt } from '@/components/chat/TagFeaturePrompt'
+import { SketchWorkspace } from '@/components/chat/SketchWizard'
 import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
 import { createClient } from '@/lib/supabase/client'
+import { uploadImage, storagePaths, getFileExtension } from '@/lib/supabase/storage'
 import { cn } from '@/lib/utils'
 import type { Feature, FeatureGeoJSON, FeatureType, Project, Sketch, User } from '@/lib/types'
 import type { ContributorMapHandle } from '@/components/map/ContributorMap'
@@ -98,12 +103,19 @@ export function ContributorChatPanel({
   const [featurePanelState, setFeaturePanelState] = useState<FeaturePanelState>('closed')
   const [featureSketches, setFeatureSketches] = useState<Sketch[]>([])
   const [sketchesLoading, setSketchesLoading] = useState(false)
+  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [sketchWorkspaceOpen, setSketchWorkspaceOpen] = useState(false)
+  const [pendingVisualize, setPendingVisualize] = useState(false)
+  const [featureTagMode, setFeatureTagMode] = useState(false)
+  const [pendingTagFeature, setPendingTagFeature] = useState(false)
 
   const isGuest = conversationId === null
 
   const {
     messages,
     input,
+    setInput,
     handleInputChange,
     handleSubmit,
     isLoading,
@@ -128,9 +140,24 @@ export function ContributorChatPanel({
         setShowAuthGate(true)
         return
       }
+      if (pendingImageUrl) {
+        const text = input.trim() || '(shared an image)'
+        // AI SDK useChat types content as string, but runtime + streamText support
+        // array content for multi-modal messages — cast is safe here.
+        append({
+          role: 'user',
+          content: [
+            { type: 'image', image: pendingImageUrl },
+            { type: 'text', text },
+          ],
+        } as unknown as Parameters<typeof append>[0])
+        setInput('')
+        setPendingImageUrl(null)
+        return
+      }
       handleSubmit(e)
     },
-    [isGuest, handleSubmit]
+    [isGuest, handleSubmit, pendingImageUrl, input, append, setInput]
   )
 
   const guardedAppend = useCallback(
@@ -169,11 +196,20 @@ export function ContributorChatPanel({
   }, [])
 
   const handleDrawSave = useCallback((feature: Feature) => {
-    setFeaturesState((prev) => [...prev, feature])
+    setFeaturesState((prev: Feature[]) => [...prev, feature])
     mapRef.current?.addFeatureLayer(feature)
     activateDrawnFeature(feature)
     setPendingGeoJSON(null)
-  }, [activateDrawnFeature])
+    if (pendingVisualize) {
+      setPendingVisualize(false)
+      setSketchWorkspaceOpen(true)
+      setMobileChatView('chat')
+    }
+    if (pendingTagFeature) {
+      setPendingTagFeature(false)
+      setMobileChatView('chat')
+    }
+  }, [activateDrawnFeature, pendingVisualize, pendingTagFeature])
 
   const handleDrawCancel = useCallback(() => {
     mapRef.current?.cancelDraw()
@@ -193,7 +229,15 @@ export function ContributorChatPanel({
     setFeatureSketches([])
     // Fly after a tick so the panel has begun rendering (ResizeObserver fires map.resize)
     setTimeout(() => mapRef.current?.flyToFeature(feature), 60)
-  }, [pinLocation])
+    // If the visualization workspace is open, switch back to chat so the user
+    // can see the selected feature reflected in the workspace's feature_select step
+    if (sketchWorkspaceOpen) setMobileChatView('chat')
+    // If in tag-feature mode, the selection completes the action — return to chat
+    if (featureTagMode) {
+      setFeatureTagMode(false)
+      setMobileChatView('chat')
+    }
+  }, [pinLocation, sketchWorkspaceOpen, featureTagMode])
 
   const handleFeatureDismiss = useCallback(() => {
     clearPin()
@@ -282,6 +326,68 @@ export function ContributorChatPanel({
       setTimeout(() => setCopied(false), 2000)
     })
   }
+
+  const handleUseMyLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.')
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        pinLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+      },
+      () => {
+        alert('Unable to retrieve your location. Please check your browser permissions.')
+      }
+    )
+  }, [pinLocation])
+
+  const handleTagFeature = useCallback(() => {
+    setFeatureTagMode(true)
+  }, [])
+
+  const handleTagDrawNewFeature = useCallback(() => {
+    setFeatureTagMode(false)
+    setPendingTagFeature(true)
+    setMobileChatView('map')
+  }, [])
+
+  const handlePhotoSelected = useCallback(
+    async (file: File) => {
+      if (!conversationId) return
+      setIsUploadingImage(true)
+      try {
+        const supabase = createClient()
+        const ext = getFileExtension(file)
+        const path = storagePaths.conversationAttachment(conversationId, ext)
+        const url = await uploadImage(supabase, 'conversation-attachments', path, file)
+        setPendingImageUrl(url)
+      } catch (err) {
+        console.error('Photo upload failed:', err)
+      } finally {
+        setIsUploadingImage(false)
+      }
+    },
+    [conversationId]
+  )
+
+  const handleOpenSketchWorkspace = useCallback(() => {
+    setSketchWorkspaceOpen(true)
+  }, [])
+
+  const handleSketchGoToMap = useCallback(() => {
+    setMobileChatView('map')
+  }, [])
+
+  const handleDrawNewFeature = useCallback(() => {
+    setSketchWorkspaceOpen(false)
+    setPendingVisualize(true)
+    setMobileChatView('map')
+  }, [])
+
+  const handleSketchPublished = useCallback((sketch: Sketch) => {
+    setFeatureSketches((prev: Sketch[]) => [sketch, ...prev])
+  }, [])
 
   const center: [number, number] =
     project.lng != null && project.lat != null
@@ -735,7 +841,17 @@ export function ContributorChatPanel({
                     className="flex-1 min-h-0"
                     hideInput
                     bottomSlot={
-                      surfacedContent?.type === 'theme' ? (
+                      sketchWorkspaceOpen && conversationId ? (
+                        <SketchWorkspace
+                          activeFeature={activeFeature}
+                          projectId={project.id}
+                          conversationId={conversationId}
+                          onClose={() => setSketchWorkspaceOpen(false)}
+                          onGoToMap={handleSketchGoToMap}
+                          onDrawNewFeature={handleDrawNewFeature}
+                          onPublished={handleSketchPublished}
+                        />
+                      ) : surfacedContent?.type === 'theme' ? (
                         <ThemeSurface theme={null} onDismiss={clearSurface} />
                       ) : surfacedContent?.type === 'data_point' ? (
                         <DataPointSurface dataPoint={null} onDismiss={clearSurface} />
@@ -746,7 +862,16 @@ export function ContributorChatPanel({
 
                 {/* Chat input — always shown once history is loaded */}
                 {historyLoaded && (
-                  <div className="shrink-0 border-t border-border bg-talwa-cream px-4 py-3">
+                  <div className="shrink-0 border-t border-border bg-talwa-cream px-4 py-3 flex flex-col gap-2">
+                    {featureTagMode && !isGuest && (
+                      <TagFeaturePrompt
+                        activeFeature={activeFeature}
+                        onGoToMap={() => setMobileChatView('map')}
+                        onDrawNewFeature={handleTagDrawNewFeature}
+                        onConfirm={() => setFeatureTagMode(false)}
+                        onDismiss={() => setFeatureTagMode(false)}
+                      />
+                    )}
                     {isGuest ? (
                       /* Guest CTA — clicking opens auth gate */
                       <div className="flex items-center gap-2">
@@ -772,28 +897,70 @@ export function ContributorChatPanel({
                       <div className="flex items-center gap-2">
                         <form
                           onSubmit={guardedSubmit}
-                          className="flex-1 flex items-center gap-2 bg-background rounded-full border border-input px-3 py-2"
+                          className="flex-1 flex flex-col bg-background rounded-2xl border border-input px-3 py-2 gap-2"
                         >
-                          <PlusCircle className="w-5 h-5 text-muted-foreground/50 shrink-0" />
-                          <textarea
-                            ref={textareaRef}
-                            value={input}
-                            onChange={handleInputChange}
-                            onKeyDown={handleKeyDown}
-                            onInput={handleTextareaInput}
-                            placeholder="Ask me something …"
-                            disabled={isLoading}
-                            rows={1}
-                            className="flex-1 bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground text-talwa-navy min-h-[20px] max-h-28 overflow-y-auto"
-                          />
-                          <button
-                            type="submit"
-                            disabled={isLoading || !input.trim()}
-                            className="w-8 h-8 rounded-full bg-talwa-teal flex items-center justify-center text-white disabled:opacity-40 shrink-0 transition-opacity"
-                            aria-label="Send"
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                          </button>
+                          {/* Pending image preview */}
+                          {(pendingImageUrl || isUploadingImage) && (
+                            <div className="flex items-center gap-2">
+                              <div className="relative w-12 h-12 rounded-md overflow-hidden border border-border shrink-0 bg-muted">
+                                {isUploadingImage ? (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                                  </div>
+                                ) : pendingImageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={pendingImageUrl}
+                                    alt="Attachment preview"
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : null}
+                              </div>
+                              {!isUploadingImage && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingImageUrl(null)}
+                                  aria-label="Remove attachment"
+                                  className="text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2">
+                            <ChatPlusMenu
+                              disabled={isLoading || isUploadingImage}
+                              onUseMyLocation={handleUseMyLocation}
+                              onTagFeature={handleTagFeature}
+                              onPhotoSelected={handlePhotoSelected}
+                              onVisualize={handleOpenSketchWorkspace}
+                            />
+                            <textarea
+                              ref={textareaRef}
+                              value={input}
+                              onChange={handleInputChange}
+                              onKeyDown={handleKeyDown}
+                              onInput={handleTextareaInput}
+                              placeholder="Ask me something …"
+                              disabled={isLoading}
+                              rows={1}
+                              className="flex-1 bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground text-talwa-navy min-h-[20px] max-h-28 overflow-y-auto"
+                            />
+                            <button
+                              type="submit"
+                              disabled={
+                                isLoading ||
+                                isUploadingImage ||
+                                (!input.trim() && !pendingImageUrl)
+                              }
+                              className="w-8 h-8 rounded-full bg-talwa-teal flex items-center justify-center text-white disabled:opacity-40 shrink-0 transition-opacity"
+                              aria-label="Send"
+                            >
+                              <ArrowUp className="w-4 h-4" />
+                            </button>
+                          </div>
                         </form>
                         {/* Mobile: map toggle */}
                         <button

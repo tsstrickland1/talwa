@@ -192,11 +192,15 @@ export type FeatureType = Feature['type']
 
 // ─── API Request / Response Shapes ───────────────────────────────────────────
 
+export type MessageContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; image: string }
+
 export type FacilitatorRequestBody = {
   messages: Array<{
     id?: string
     role: 'user' | 'assistant' | 'system'
-    content: string
+    content: string | MessageContentBlock[]
   }>
   location: Location | null
   feature_id: string | null
