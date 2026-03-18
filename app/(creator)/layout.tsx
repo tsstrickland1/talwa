@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CreatorNav } from '@/components/layout/CreatorNav'
-import type { User, Project } from '@/lib/types'
+import { getManagedProfiles } from '@/lib/supabase/permissions'
+import type { User, Project, CreatorProfile } from '@/lib/types'
 
 export default async function CreatorLayout({
   children,
@@ -18,6 +19,8 @@ export default async function CreatorLayout({
     redirect('/login?next=/dashboard')
   }
 
+  const admin = createAdminClient()
+
   let { data: profile } = await supabase
     .from('users')
     .select('*')
@@ -25,9 +28,6 @@ export default async function CreatorLayout({
     .single()
 
   if (!profile) {
-    // Regular client (subject to RLS) may return null if the session cookie isn't
-    // forwarding correctly. Re-check with admin client to get the real profile.
-    const admin = createAdminClient()
     const { data: adminProfile } = await admin
       .from('users')
       .select('*')
@@ -44,17 +44,27 @@ export default async function CreatorLayout({
     redirect('/explore')
   }
 
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('creator_id', authUser.id)
-    .order('created_at', { ascending: false })
+  // Fetch all creator profiles this user can manage
+  const creatorProfiles = await getManagedProfiles(admin, authUser.id)
+  const profileIds = creatorProfiles.map((p) => p.id)
+
+  // Fetch projects for all managed profiles
+  let projects: Project[] = []
+  if (profileIds.length > 0) {
+    const { data } = await admin
+      .from('projects')
+      .select('*')
+      .in('creator_profile_id', profileIds)
+      .order('created_at', { ascending: false })
+    projects = (data ?? []) as Project[]
+  }
 
   return (
     <div className="flex h-screen overflow-hidden">
       <CreatorNav
         user={profile as User}
-        projects={(projects ?? []) as Project[]}
+        projects={projects}
+        creatorProfiles={creatorProfiles}
       />
       <main className="flex-1 overflow-y-auto bg-talwa-cream">{children}</main>
     </div>

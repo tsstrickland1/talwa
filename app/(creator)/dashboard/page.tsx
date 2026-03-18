@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { ProjectCard } from '@/components/cards/ProjectCard'
 import { Button } from '@/components/ui/button'
 import { GeocodeProjectsButton } from './GeocodeProjectsButton'
 import { Plus } from 'lucide-react'
+import { getManagedProfiles } from '@/lib/supabase/permissions'
 import type { Project, User } from '@/lib/types'
 
 export default async function DashboardPage() {
@@ -15,6 +17,8 @@ export default async function DashboardPage() {
 
   if (!authUser) redirect('/login')
 
+  const admin = createAdminClient()
+
   const { data: profileData } = await supabase
     .from('users')
     .select('user_type')
@@ -23,13 +27,21 @@ export default async function DashboardPage() {
 
   const isAdmin = (profileData as Pick<User, 'user_type'> | null)?.user_type === 'admin'
 
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('creator_id', authUser.id)
-    .order('created_at', { ascending: false })
+  // Fetch all projects across all creator profiles this user manages
+  const creatorProfiles = await getManagedProfiles(admin, authUser.id)
+  const profileIds = creatorProfiles.map((p) => p.id)
 
-  const typedProjects = (projects ?? []) as Project[]
+  let projects: Project[] = []
+  if (profileIds.length > 0) {
+    const { data } = await admin
+      .from('projects')
+      .select('*')
+      .in('creator_profile_id', profileIds)
+      .order('created_at', { ascending: false })
+    projects = (data ?? []) as Project[]
+  }
+
+  const typedProjects = projects
 
   // Quick stats
   const activeCount = typedProjects.filter((p) => p.status === 'active').length

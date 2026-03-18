@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { userCanManageProject } from '@/lib/supabase/permissions'
 
 const requestSchema = z.object({
   project_id: z.string().uuid(),
@@ -38,12 +39,8 @@ export async function POST(req: Request) {
 
   // Verify the caller has permission to manage files for this project
   const admin = createAdminClient()
-  const [projectResult, accessResult] = await Promise.all([
-    admin
-      .from('projects')
-      .select('id, creator_id')
-      .eq('id', project_id)
-      .single(),
+  const [isManager, accessResult] = await Promise.all([
+    userCanManageProject(admin, user.id, project_id),
     admin
       .from('project_access')
       .select('permissions')
@@ -52,11 +49,10 @@ export async function POST(req: Request) {
       .maybeSingle(),
   ])
 
-  const isCreator = projectResult.data?.creator_id === user.id
   const hasPermission =
     accessResult.data?.permissions?.includes('manage_files') ?? false
 
-  if (!isCreator && !hasPermission) {
+  if (!isManager && !hasPermission) {
     return new Response('Forbidden', { status: 403 })
   }
 

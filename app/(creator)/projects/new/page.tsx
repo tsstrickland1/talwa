@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -10,12 +10,30 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Plus, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import type { CreatorProfile } from '@/lib/types'
 
 export default function NewProjectPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [questions, setQuestions] = useState<string[]>([''])
+  const [profiles, setProfiles] = useState<CreatorProfile[]>([])
+  const [selectedProfileId, setSelectedProfileId] = useState<string>('')
+
+  useEffect(() => {
+    fetch('/api/creator-profiles')
+      .then((r) => r.json())
+      .then((data) => {
+        const list = (data.profiles ?? []) as CreatorProfile[]
+        setProfiles(list)
+        if (list.length > 0) {
+          // Default to individual profile, or first available
+          const individual = list.find((p) => p.type === 'individual')
+          setSelectedProfileId(individual?.id ?? list[0].id)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -31,6 +49,12 @@ export default function NewProjectPage() {
       return
     }
 
+    if (!selectedProfileId) {
+      setError('Please select a creator profile')
+      setIsLoading(false)
+      return
+    }
+
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .insert({
@@ -40,7 +64,7 @@ export default function NewProjectPage() {
         location: formData.get('location') as string,
         status: 'draft',
         publicly_visible: false,
-        creator_id: user.id,
+        creator_profile_id: selectedProfileId,
         dialogue_framework: questions.filter((q) => q.trim()),
       })
       .select('id')
@@ -84,6 +108,31 @@ export default function NewProjectPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Profile selector — only show if user has multiple profiles */}
+        {profiles.length > 1 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Create Under</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Choose which profile or organization will own this project.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <select
+                value={selectedProfileId}
+                onChange={(e) => setSelectedProfileId(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}{p.type === 'organization' ? ' (Org)' : ''}
+                  </option>
+                ))}
+              </select>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Project Details</CardTitle>

@@ -14,6 +14,9 @@ import {
   BarChart3,
   ChevronDown,
   LogOut,
+  Building2,
+  UserCircle,
+  Plus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -27,12 +30,13 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import type { User, Project } from '@/lib/types'
+import type { User, Project, CreatorProfile } from '@/lib/types'
 
 type CreatorNavProps = {
   user: User
   project?: Project
   projects?: Project[]
+  creatorProfiles?: CreatorProfile[]
 }
 
 const projectNavItems = (projectId: string) => [
@@ -73,7 +77,7 @@ const projectNavItems = (projectId: string) => [
   },
 ]
 
-export function CreatorNav({ user, project, projects = [] }: CreatorNavProps) {
+export function CreatorNav({ user, project, projects = [], creatorProfiles = [] }: CreatorNavProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -115,6 +119,45 @@ export function CreatorNav({ user, project, projects = [] }: CreatorNavProps) {
             Dashboard
           </Link>
         </Button>
+
+        {/* Creator profiles / organizations */}
+        {creatorProfiles.length > 0 && (
+          <>
+            <Separator className="my-2" />
+            <p className="px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+              Profiles
+            </p>
+            {creatorProfiles.map((cp) => (
+              <Button
+                key={cp.id}
+                variant="ghost"
+                size="sm"
+                className="justify-start gap-2 h-auto py-1.5"
+                asChild
+              >
+                <Link href={cp.type === 'organization' ? `/organizations/${cp.id}` : '/dashboard'}>
+                  {cp.type === 'organization' ? (
+                    <Building2 className="h-3.5 w-3.5 shrink-0" />
+                  ) : (
+                    <UserCircle className="h-3.5 w-3.5 shrink-0" />
+                  )}
+                  <span className="text-xs truncate">{cp.name}</span>
+                </Link>
+              </Button>
+            ))}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="justify-start gap-2 text-muted-foreground"
+              asChild
+            >
+              <Link href="/organizations/new">
+                <Plus className="h-3.5 w-3.5" />
+                <span className="text-xs">New organization</span>
+              </Link>
+            </Button>
+          </>
+        )}
 
         {/* Project switcher */}
         {project && (

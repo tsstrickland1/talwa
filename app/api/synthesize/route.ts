@@ -70,15 +70,39 @@ export async function POST(req: Request) {
       }),
     })
 
-    // Get project creator for creator_id
+    // Get a user ID for theme attribution: resolve from creator profile
     const { data: project } = await admin
       .from('projects')
-      .select('creator_id')
+      .select('creator_profile_id')
       .eq('id', project_id)
       .single()
 
+    let themeCreatorId: string | null = null
+    if (project?.creator_profile_id) {
+      // Try individual profile link first
+      const { data: cpUser } = await admin
+        .from('creator_profile_users')
+        .select('user_id')
+        .eq('creator_profile_id', project.creator_profile_id)
+        .maybeSingle()
+
+      if (cpUser) {
+        themeCreatorId = cpUser.user_id
+      } else {
+        // Organization: use the owner
+        const { data: owner } = await admin
+          .from('organization_members')
+          .select('user_id')
+          .eq('creator_profile_id', project.creator_profile_id)
+          .eq('role', 'owner')
+          .limit(1)
+          .maybeSingle()
+        themeCreatorId = owner?.user_id ?? null
+      }
+    }
+
     // Insert new themes
-    if (object.new_themes.length > 0) {
+    if (object.new_themes.length > 0 && themeCreatorId) {
       await admin.from('themes').insert(
         object.new_themes.map((t) => ({
           id: t.id,
@@ -86,7 +110,7 @@ export async function POST(req: Request) {
           name: t.name,
           summary: t.summary,
           research_question,
-          creator_id: project?.creator_id,
+          creator_id: themeCreatorId,
         }))
       )
     }
