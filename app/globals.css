@@ -94,6 +94,13 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Prevent iOS Safari from zooming on input focus (triggered when font-size < 16px) */
+  @media (hover: none) {
+    input, textarea, select {
+      font-size: 16px;
+    }
+  }
+
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Fraunces', Georgia, serif;
   }
