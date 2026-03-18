@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ProjectCard } from '@/components/cards/ProjectCard'
-import { Users, Settings, Plus } from 'lucide-react'
+import { Users, Settings, Plus, Pencil } from 'lucide-react'
 import type { Project, CreatorProfile, OrganizationMember } from '@/lib/types'
 
 type Props = {
@@ -82,6 +82,12 @@ export default async function OrganizationPage({ params }: Props) {
               <Link href={`/organizations/${id}/members`}>
                 <Users className="h-4 w-4 mr-1.5" />
                 Members
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/organizations/${id}/settings`}>
+                <Pencil className="h-4 w-4 mr-1.5" />
+                Edit Profile
               </Link>
             </Button>
           </div>

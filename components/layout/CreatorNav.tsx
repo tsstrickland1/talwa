@@ -18,6 +18,7 @@ import {
   UserCircle,
   Plus,
   Menu,
+  Globe,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -98,6 +99,16 @@ export function CreatorNav({ user, projects = [], creatorProfiles = [] }: Creato
   const currentProject = projects.find((p) => p.id === projectIdFromPath)
   const navItems = currentProject ? projectNavItems(currentProject.id) : []
 
+  // Derive current org from pathname for org sub-nav
+  const orgIdFromPath = pathname.match(/\/organizations\/([^/]+)/)?.[1]
+  const currentOrg = creatorProfiles.find((p) => p.id === orgIdFromPath && p.type === 'organization')
+  const orgNavItems = currentOrg
+    ? [
+        { label: 'Members', href: `/organizations/${currentOrg.id}/members`, icon: Users },
+        { label: 'Settings', href: `/organizations/${currentOrg.id}/settings`, icon: Settings },
+      ]
+    : []
+
   const navContent = (onNavClick?: () => void) => (
     <>
       {/* Logo */}
@@ -128,6 +139,20 @@ export function CreatorNav({ user, projects = [], creatorProfiles = [] }: Creato
           </Link>
         </Button>
 
+        {/* Explore link */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="justify-start gap-2 mb-1 text-muted-foreground"
+          asChild
+          onClick={onNavClick}
+        >
+          <Link href="/explore">
+            <Globe className="h-4 w-4" />
+            Browse projects
+          </Link>
+        </Button>
+
         {/* Creator profiles / organizations */}
         {creatorProfiles.length > 0 && (
           <>
@@ -144,7 +169,7 @@ export function CreatorNav({ user, projects = [], creatorProfiles = [] }: Creato
                 asChild
                 onClick={onNavClick}
               >
-                <Link href={cp.type === 'organization' ? `/organizations/${cp.id}` : '/dashboard'}>
+                <Link href={cp.type === 'organization' ? `/organizations/${cp.id}` : `/profiles/${cp.id}`}>
                   {cp.type === 'organization' ? (
                     <Building2 className="h-3.5 w-3.5 shrink-0" />
                   ) : (
@@ -166,6 +191,40 @@ export function CreatorNav({ user, projects = [], creatorProfiles = [] }: Creato
                 <span className="text-xs">New organization</span>
               </Link>
             </Button>
+          </>
+        )}
+
+        {/* Org sub-nav */}
+        {orgNavItems.length > 0 && (
+          <>
+            <Separator className="my-2" />
+            <p className="px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+              {currentOrg!.name}
+            </p>
+            <nav className="flex flex-col gap-0.5">
+              {orgNavItems.map((item) => {
+                const Icon = item.icon
+                const isActive = pathname === item.href
+                return (
+                  <Button
+                    key={item.href}
+                    variant={isActive ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className={cn(
+                      'justify-start gap-2',
+                      isActive && 'text-talwa-teal font-medium'
+                    )}
+                    asChild
+                    onClick={onNavClick}
+                  >
+                    <Link href={item.href}>
+                      <Icon className="h-4 w-4" />
+                      {item.label}
+                    </Link>
+                  </Button>
+                )
+              })}
+            </nav>
           </>
         )}
 
