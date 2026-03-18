@@ -47,6 +47,7 @@ export default function NewOrganizationPage() {
 
     const { id } = await res.json() as { id: string }
     router.push(`/organizations/${id}`)
+    router.refresh()
   }
 
   return (
