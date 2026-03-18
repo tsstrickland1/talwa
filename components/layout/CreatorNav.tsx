@@ -17,6 +17,7 @@ import {
   Building2,
   UserCircle,
   Plus,
+  Menu,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -27,14 +28,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { useState } from 'react'
 import type { User, Project, CreatorProfile } from '@/lib/types'
 
 type CreatorNavProps = {
   user: User
-  project?: Project
   projects?: Project[]
   creatorProfiles?: CreatorProfile[]
 }
@@ -77,9 +79,10 @@ const projectNavItems = (projectId: string) => [
   },
 ]
 
-export function CreatorNav({ user, project, projects = [], creatorProfiles = [] }: CreatorNavProps) {
+export function CreatorNav({ user, projects = [], creatorProfiles = [] }: CreatorNavProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -89,13 +92,17 @@ export function CreatorNav({ user, project, projects = [], creatorProfiles = [] 
   }
 
   const initials = `${user.name_first[0] ?? ''}${user.name_last[0] ?? ''}`.toUpperCase()
-  const navItems = project ? projectNavItems(project.id) : []
 
-  return (
-    <aside className="flex h-full w-60 flex-col border-r border-border bg-background">
+  // Derive current project from pathname so project nav items always appear on project routes
+  const projectIdFromPath = pathname.match(/\/projects\/([^/]+)/)?.[1]
+  const currentProject = projects.find((p) => p.id === projectIdFromPath)
+  const navItems = currentProject ? projectNavItems(currentProject.id) : []
+
+  const navContent = (onNavClick?: () => void) => (
+    <>
       {/* Logo */}
-      <div className="flex h-14 items-center border-b border-border px-4">
-        <Link href="/dashboard">
+      <div className="flex h-14 items-center border-b border-border px-4 shrink-0">
+        <Link href="/dashboard" onClick={onNavClick}>
           <Image
             src="/brand/lockup-horizontal.png"
             alt="Talwa"
@@ -113,6 +120,7 @@ export function CreatorNav({ user, project, projects = [], creatorProfiles = [] 
           size="sm"
           className="justify-start gap-2 mb-1"
           asChild
+          onClick={onNavClick}
         >
           <Link href="/dashboard">
             <LayoutDashboard className="h-4 w-4" />
@@ -134,6 +142,7 @@ export function CreatorNav({ user, project, projects = [], creatorProfiles = [] 
                 size="sm"
                 className="justify-start gap-2 h-auto py-1.5"
                 asChild
+                onClick={onNavClick}
               >
                 <Link href={cp.type === 'organization' ? `/organizations/${cp.id}` : '/dashboard'}>
                   {cp.type === 'organization' ? (
@@ -150,6 +159,7 @@ export function CreatorNav({ user, project, projects = [], creatorProfiles = [] 
               size="sm"
               className="justify-start gap-2 text-muted-foreground"
               asChild
+              onClick={onNavClick}
             >
               <Link href="/organizations/new">
                 <Plus className="h-3.5 w-3.5" />
@@ -160,7 +170,7 @@ export function CreatorNav({ user, project, projects = [], creatorProfiles = [] 
         )}
 
         {/* Project switcher */}
-        {project && (
+        {currentProject && (
           <>
             <Separator className="my-2" />
             <DropdownMenu>
@@ -171,7 +181,7 @@ export function CreatorNav({ user, project, projects = [], creatorProfiles = [] 
                   className="justify-between gap-2 mb-2 h-auto py-2 px-3"
                 >
                   <span className="text-left leading-tight text-xs font-medium truncate">
-                    {project.name}
+                    {currentProject.name}
                   </span>
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
                 </Button>
@@ -179,13 +189,13 @@ export function CreatorNav({ user, project, projects = [], creatorProfiles = [] 
               <DropdownMenuContent align="start" className="w-56">
                 {projects.map((p) => (
                   <DropdownMenuItem key={p.id} asChild>
-                    <Link href={`/projects/${p.id}/insights`}>
+                    <Link href={`/projects/${p.id}/insights`} onClick={onNavClick}>
                       {p.name}
                     </Link>
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuItem asChild>
-                  <Link href="/projects/new">+ New project</Link>
+                  <Link href="/projects/new" onClick={onNavClick}>+ New project</Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -205,6 +215,7 @@ export function CreatorNav({ user, project, projects = [], creatorProfiles = [] 
                       isActive && 'text-talwa-teal font-medium'
                     )}
                     asChild
+                    onClick={onNavClick}
                   >
                     <Link href={item.href}>
                       <Icon className="h-4 w-4" />
@@ -219,7 +230,7 @@ export function CreatorNav({ user, project, projects = [], creatorProfiles = [] 
       </div>
 
       {/* User footer */}
-      <div className="border-t border-border p-3">
+      <div className="border-t border-border p-3 shrink-0">
         <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8">
             {user.avatar && (
@@ -244,6 +255,50 @@ export function CreatorNav({ user, project, projects = [], creatorProfiles = [] 
           </Button>
         </div>
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Mobile: sticky top header bar */}
+      <div className="flex md:hidden items-center justify-between h-14 px-4 border-b border-border bg-background shrink-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open navigation"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <Link href="/dashboard">
+          <Image
+            src="/brand/lockup-horizontal.png"
+            alt="Talwa"
+            width={90}
+            height={24}
+            className="h-6 w-auto"
+          />
+        </Link>
+        <Avatar className="h-8 w-8">
+          {user.avatar && (
+            <Image src={user.avatar} alt={initials} fill className="object-cover" />
+          )}
+          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+        </Avatar>
+      </div>
+
+      {/* Mobile: Sheet drawer */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" className="w-72 p-0 flex flex-col">
+          {navContent(() => setMobileOpen(false))}
+        </SheetContent>
+      </Sheet>
+
+      {/* Desktop: sidebar */}
+      <aside className="hidden md:flex h-full w-60 flex-col border-r border-border bg-background">
+        {navContent()}
+      </aside>
+    </>
   )
 }

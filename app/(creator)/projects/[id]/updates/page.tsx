@@ -58,7 +58,7 @@ export default function UpdatesPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-4 md:p-6 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="font-heading text-2xl font-bold text-talwa-navy">
           Project Updates
