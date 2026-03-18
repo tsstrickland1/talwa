@@ -154,6 +154,8 @@ export function useMap({
   const editingDrawIdRef = useRef<{ featureId: string; drawId: string } | null>(null)
   // Maps layerId → Feature; used by the early global click handler
   const layerFeatureMapRef = useRef<Map<string, Feature>>(new Map())
+  // Cleanup function for direct canvas touch listeners (drawingEnabled path)
+  const touchCleanupRef = useRef<(() => void) | null>(null)
 
   // Refs for all callbacks so event handlers captured at init always call latest versions
   const onFeatureClickRef = useRef(onFeatureClick)
@@ -239,6 +241,58 @@ export function useMap({
       })
 
       if (drawingEnabled) {
+        // MapboxDraw intercepts touchstart/touchend at the DOM level with
+        // stopImmediatePropagation, so Mapbox GL never converts taps into
+        // synthetic 'click' events for authenticated users on mobile.
+        // We listen directly on the canvas to detect taps ourselves.
+        const canvas = map.getCanvas()
+        let tapStartX = 0
+        let tapStartY = 0
+        let tapStartTime = 0
+
+        const onTouchStart = (e: TouchEvent) => {
+          if (e.touches.length !== 1) return
+          tapStartX = e.touches[0].clientX
+          tapStartY = e.touches[0].clientY
+          tapStartTime = Date.now()
+        }
+
+        const onTouchEnd = (e: TouchEvent) => {
+          if (e.changedTouches.length !== 1) return
+          const dx = e.changedTouches[0].clientX - tapStartX
+          const dy = e.changedTouches[0].clientY - tapStartY
+          const dt = Date.now() - tapStartTime
+          // Discard drags (moved > 10px) and long-presses (> 300ms)
+          if (Math.abs(dx) > 10 || Math.abs(dy) > 10 || dt > 300) return
+
+          const rect = canvas.getBoundingClientRect()
+          const x = e.changedTouches[0].clientX - rect.left
+          const y = e.changedTouches[0].clientY - rect.top
+
+          const layerIds = Array.from(layerFeatureMapRef.current.keys()).filter((id) => {
+            try { return !!map.getLayer(id) } catch { return false }
+          })
+          const bbox: [[number, number], [number, number]] = [
+            [x - 20, y - 20],
+            [x + 20, y + 20],
+          ]
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const hit: any[] = layerIds.length > 0
+            ? map.queryRenderedFeatures(bbox, { layers: layerIds })
+            : []
+          if (hit.length > 0) {
+            const feature = layerFeatureMapRef.current.get(hit[0].layer.id)
+            if (feature) onFeatureClickRef.current?.(feature)
+          }
+        }
+
+        canvas.addEventListener('touchstart', onTouchStart, { passive: true })
+        canvas.addEventListener('touchend', onTouchEnd, { passive: true })
+        touchCleanupRef.current = () => {
+          canvas.removeEventListener('touchstart', onTouchStart)
+          canvas.removeEventListener('touchend', onTouchEnd)
+        }
+
         const MapboxDraw = (await import('@mapbox/mapbox-gl-draw')).default
         const draw = new MapboxDraw({
           displayControlsDefault: false,
@@ -287,6 +341,8 @@ export function useMap({
     initMap()
 
     return () => {
+      touchCleanupRef.current?.()
+      touchCleanupRef.current = null
       map?.remove()
       mapRef.current = null
       drawRef.current = null
