@@ -26,7 +26,7 @@ export async function getOrCreateConversationVectorStore(
   }
 
   // Create a new vector store with automatic expiration
-  const vectorStore = await openai.vectorStores.create({
+  const vectorStore = await openai.beta.vectorStores.create({
     name: `conversation-${conversationId}`,
     expires_after: { anchor: 'last_active_at', days: EXPIRATION_DAYS },
   })
@@ -57,7 +57,7 @@ export async function addFileToConversationVectorStore(
   const uploaded = await openai.files.create({ file, purpose: 'assistants' })
 
   // Add to vector store and poll until processing is done
-  await openai.vectorStores.files.createAndPoll(vectorStoreId, {
+  await openai.beta.vectorStores.files.createAndPoll(vectorStoreId, {
     file_id: uploaded.id,
   })
 
@@ -73,7 +73,7 @@ export async function queryVectorStore(
   query: string,
   maxResults = 5
 ): Promise<string[]> {
-  const response = await openai.vectorStores.search(vectorStoreId, {
+  const response = await openai.beta.vectorStores.search(vectorStoreId, {
     query,
     max_num_results: maxResults,
   })
