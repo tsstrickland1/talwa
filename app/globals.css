@@ -94,8 +94,9 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Prevent iOS Safari from zooming on input focus (triggered when font-size < 16px) */
-  @media (hover: none) {
+  /* Prevent mobile browsers from zooming on input focus (triggered when font-size < 16px).
+     pointer: coarse covers both iOS Safari and Chromium-based mobile browsers. */
+  @media (pointer: coarse) {
     input, textarea, select {
       font-size: 16px;
     }
