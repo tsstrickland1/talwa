@@ -11,7 +11,6 @@ import {
   MoreHorizontal,
   Clock,
   HelpCircle,
-  PlusCircle,
   ArrowUp,
   Compass,
   PanelLeft,
@@ -28,6 +27,7 @@ import {
   Maximize2,
   ChevronDown,
   Loader2,
+  FileText,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -44,7 +44,6 @@ import { TagFeaturePrompt } from '@/components/chat/TagFeaturePrompt'
 import { SketchWorkspace } from '@/components/chat/SketchWizard'
 import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
 import { createClient } from '@/lib/supabase/client'
-import { uploadImage, storagePaths, getFileExtension } from '@/lib/supabase/storage'
 import { cn } from '@/lib/utils'
 import type { Feature, FeatureGeoJSON, FeatureType, Project, Sketch, User } from '@/lib/types'
 import type { ContributorMapHandle } from '@/components/map/ContributorMap'
@@ -77,6 +76,42 @@ const FEATURE_TYPE_LABELS: Record<FeatureType, string> = {
 
 const FEATURE_TYPES = Object.entries(FEATURE_TYPE_LABELS) as [FeatureType, string][]
 
+type PendingAttachment = {
+  id: string
+  type: 'image' | 'document'
+  name: string
+  mimeType: string
+  uploading: boolean
+  // image
+  url?: string
+  storagePath?: string
+  // document
+  openaiFileId?: string
+}
+
+function getFileTypeLabel(mimeType: string): string {
+  const map: Record<string, string> = {
+    'image/jpeg': 'JPG',
+    'image/png': 'PNG',
+    'image/gif': 'GIF',
+    'image/webp': 'WebP',
+    'image/svg+xml': 'SVG',
+    'application/pdf': 'PDF',
+    'text/plain': 'TXT',
+    'text/markdown': 'MD',
+    'application/msword': 'DOC',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+    'application/vnd.ms-powerpoint': 'PPT',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
+    'application/vnd.ms-excel': 'XLS',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+    'text/csv': 'CSV',
+    'text/html': 'HTML',
+    'application/json': 'JSON',
+  }
+  return map[mimeType] ?? mimeType.split('/')[1]?.toUpperCase() ?? 'FILE'
+}
+
 export function ContributorChatPanel({
   project,
   features: initialFeatures,
@@ -103,10 +138,7 @@ export function ContributorChatPanel({
   const [featurePanelState, setFeaturePanelState] = useState<FeaturePanelState>('closed')
   const [featureSketches, setFeatureSketches] = useState<Sketch[]>([])
   const [sketchesLoading, setSketchesLoading] = useState(false)
-  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null)
-  const [isUploadingImage, setIsUploadingImage] = useState(false)
-  const [pendingDocumentAttachment, setPendingDocumentAttachment] = useState<{ name: string } | null>(null)
-  const [isUploadingDocument, setIsUploadingDocument] = useState(false)
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [vectorStoreId, setVectorStoreId] = useState<string | null>(null)
   const [sketchWorkspaceOpen, setSketchWorkspaceOpen] = useState(false)
   const [pendingVisualize, setPendingVisualize] = useState(false)
@@ -144,28 +176,30 @@ export function ContributorChatPanel({
         setShowAuthGate(true)
         return
       }
-      if (pendingImageUrl) {
-        const text = input.trim() || '(shared an image)'
+      const readyImages = pendingAttachments.filter(
+        (a): a is PendingAttachment & { type: 'image'; url: string } =>
+          a.type === 'image' && !a.uploading && !!a.url
+      )
+      if (readyImages.length > 0) {
+        const text = input.trim() || '(shared files)'
         // AI SDK useChat types content as string, but runtime + streamText support
         // array content for multi-modal messages — cast is safe here.
         append({
           role: 'user',
           content: [
-            { type: 'image', image: pendingImageUrl },
+            ...readyImages.map((img) => ({ type: 'image', image: img.url })),
             { type: 'text', text },
           ],
         } as unknown as Parameters<typeof append>[0])
         setInput('')
-        setPendingImageUrl(null)
+        setPendingAttachments([])
         return
       }
-      if (pendingDocumentAttachment) {
-        // The document is already in the vector store; just clear the pending chip and send.
-        setPendingDocumentAttachment(null)
-      }
+      // Documents are already in the vector store; just clear the pending chips and send.
+      setPendingAttachments([])
       handleSubmit(e)
     },
-    [isGuest, handleSubmit, pendingImageUrl, pendingDocumentAttachment, input, append, setInput]
+    [isGuest, handleSubmit, pendingAttachments, input, append, setInput]
   )
 
   const guardedAppend = useCallback(
@@ -361,41 +395,87 @@ export function ContributorChatPanel({
   }, [])
 
   const handleFileSelected = useCallback(
-    async (file: File) => {
+    async (files: File[]) => {
       if (!conversationId) return
-      const isImage = file.type.startsWith('image/')
-      if (isImage) {
-        setIsUploadingImage(true)
-        try {
-          const supabase = createClient()
-          const ext = getFileExtension(file)
-          const path = storagePaths.conversationAttachment(conversationId, ext)
-          const url = await uploadImage(supabase, 'conversation-attachments', path, file)
-          setPendingImageUrl(url)
-        } catch (err) {
-          console.error('Photo upload failed:', err)
-        } finally {
-          setIsUploadingImage(false)
-        }
-      } else {
-        setIsUploadingDocument(true)
-        try {
-          const formData = new FormData()
-          formData.append('file', file)
-          formData.append('conversation_id', conversationId)
-          const res = await fetch('/api/facilitator/upload', { method: 'POST', body: formData })
-          if (!res.ok) throw new Error('Upload failed')
-          const data = await res.json() as { type: 'document'; name: string; vectorStoreId: string }
-          setVectorStoreId(data.vectorStoreId)
-          setPendingDocumentAttachment({ name: data.name })
-        } catch (err) {
-          console.error('Document upload failed:', err)
-        } finally {
-          setIsUploadingDocument(false)
-        }
+      // Cap at 10 total
+      const available = 10 - pendingAttachments.length
+      const filesToAdd = files.slice(0, available)
+      if (filesToAdd.length === 0) return
+
+      // Add placeholders immediately so spinners appear right away
+      const placeholders: PendingAttachment[] = filesToAdd.map((file) => ({
+        id: crypto.randomUUID(),
+        type: file.type.startsWith('image/') ? 'image' : 'document',
+        name: file.name,
+        mimeType: file.type,
+        uploading: true,
+      }))
+      setPendingAttachments((prev) => [...prev, ...placeholders])
+
+      // Upload each file in parallel
+      await Promise.all(
+        filesToAdd.map(async (file, idx) => {
+          const placeholder = placeholders[idx]
+          try {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('conversation_id', conversationId)
+            const res = await fetch('/api/facilitator/upload', { method: 'POST', body: formData })
+            if (!res.ok) throw new Error('Upload failed')
+
+            if (placeholder.type === 'image') {
+              const data = await res.json() as { type: 'image'; url: string; storagePath: string }
+              setPendingAttachments((prev) =>
+                prev.map((a) =>
+                  a.id === placeholder.id
+                    ? { ...a, uploading: false, url: data.url, storagePath: data.storagePath }
+                    : a
+                )
+              )
+            } else {
+              const data = await res.json() as { type: 'document'; name: string; vectorStoreId: string; fileId: string }
+              setVectorStoreId(data.vectorStoreId)
+              setPendingAttachments((prev) =>
+                prev.map((a) =>
+                  a.id === placeholder.id
+                    ? { ...a, uploading: false, openaiFileId: data.fileId }
+                    : a
+                )
+              )
+            }
+          } catch (err) {
+            console.error('Upload failed:', err)
+            // Remove the failed placeholder
+            setPendingAttachments((prev) => prev.filter((a) => a.id !== placeholder.id))
+          }
+        })
+      )
+    },
+    [conversationId, pendingAttachments.length]
+  )
+
+  const handleRemoveAttachment = useCallback(
+    async (id: string) => {
+      const attachment = pendingAttachments.find((a) => a.id === id)
+      if (!attachment) return
+      // Remove from UI immediately
+      setPendingAttachments((prev) => prev.filter((a) => a.id !== id))
+      // Fire-and-forget delete on the server
+      if (attachment.type === 'image' && attachment.storagePath) {
+        fetch('/api/facilitator/attachment', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'image', storagePath: attachment.storagePath }),
+        }).catch((err) => console.error('Failed to delete image from storage:', err))
+      } else if (attachment.type === 'document' && attachment.openaiFileId && vectorStoreId) {
+        fetch('/api/facilitator/attachment', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'document', vectorStoreId, fileId: attachment.openaiFileId }),
+        }).catch((err) => console.error('Failed to delete document from vector store:', err))
       }
     },
-    [conversationId]
+    [pendingAttachments, vectorStoreId]
   )
 
   const handleOpenSketchWorkspace = useCallback(() => {
@@ -926,65 +1006,58 @@ export function ContributorChatPanel({
                           onSubmit={guardedSubmit}
                           className="flex-1 flex flex-col bg-background rounded-2xl border border-input px-3 py-2 gap-2"
                         >
-                          {/* Pending image preview */}
-                          {(pendingImageUrl || isUploadingImage) && (
-                            <div className="flex items-center gap-2">
-                              <div className="relative w-12 h-12 rounded-md overflow-hidden border border-border shrink-0 bg-muted">
-                                {isUploadingImage ? (
-                                  <div className="w-full h-full flex items-center justify-center">
-                                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                          {/* Pending attachments — horizontal scroll row */}
+                          {pendingAttachments.length > 0 && (
+                            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                              {pendingAttachments.map((attachment) => (
+                                <div
+                                  key={attachment.id}
+                                  className="relative flex flex-col w-24 shrink-0 rounded-md border border-border bg-muted overflow-hidden"
+                                >
+                                  {/* Thumbnail or icon area */}
+                                  <div className="relative w-full h-14 flex items-center justify-center bg-muted">
+                                    {attachment.uploading ? (
+                                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                                    ) : attachment.type === 'image' && attachment.url ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={attachment.url}
+                                        alt={attachment.name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <FileText className="w-6 h-6 text-talwa-teal" />
+                                    )}
+                                    {/* File type badge */}
+                                    <span className="absolute bottom-0.5 left-0.5 text-[9px] font-semibold px-1 rounded bg-talwa-navy/70 text-white leading-tight">
+                                      {getFileTypeLabel(attachment.mimeType)}
+                                    </span>
+                                    {/* Remove button */}
+                                    {!attachment.uploading && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveAttachment(attachment.id)}
+                                        aria-label="Remove attachment"
+                                        className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-talwa-navy/70 flex items-center justify-center text-white hover:bg-talwa-navy transition-colors"
+                                      >
+                                        <X className="w-2.5 h-2.5" />
+                                      </button>
+                                    )}
                                   </div>
-                                ) : pendingImageUrl ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={pendingImageUrl}
-                                    alt="Attachment preview"
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : null}
-                              </div>
-                              {!isUploadingImage && (
-                                <button
-                                  type="button"
-                                  onClick={() => setPendingImageUrl(null)}
-                                  aria-label="Remove attachment"
-                                  className="text-muted-foreground hover:text-foreground transition-colors"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Pending document chip */}
-                          {(pendingDocumentAttachment || isUploadingDocument) && (
-                            <div className="flex items-center gap-2 px-1">
-                              <div className="flex items-center gap-1.5 rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground min-w-0">
-                                {isUploadingDocument ? (
-                                  <Loader2 className="w-3 h-3 animate-spin shrink-0" />
-                                ) : (
-                                  <PlusCircle className="w-3 h-3 shrink-0 text-talwa-teal" />
-                                )}
-                                <span className="truncate max-w-[160px]">
-                                  {isUploadingDocument ? 'Uploading…' : pendingDocumentAttachment?.name}
-                                </span>
-                              </div>
-                              {!isUploadingDocument && (
-                                <button
-                                  type="button"
-                                  onClick={() => setPendingDocumentAttachment(null)}
-                                  aria-label="Remove document"
-                                  className="text-muted-foreground hover:text-foreground transition-colors"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              )}
+                                  {/* Filename */}
+                                  <div className="px-1.5 py-1">
+                                    <p className="text-[10px] text-muted-foreground truncate leading-tight">
+                                      {attachment.name}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           )}
 
                           <div className="flex items-center gap-2">
                             <ChatPlusMenu
-                              disabled={isLoading || isUploadingImage || isUploadingDocument}
+                              disabled={isLoading || pendingAttachments.some((a) => a.uploading)}
                               onUseMyLocation={handleUseMyLocation}
                               onTagFeature={handleTagFeature}
                               onFileSelected={handleFileSelected}
@@ -1005,9 +1078,8 @@ export function ContributorChatPanel({
                               type="submit"
                               disabled={
                                 isLoading ||
-                                isUploadingImage ||
-                                isUploadingDocument ||
-                                (!input.trim() && !pendingImageUrl && !pendingDocumentAttachment)
+                                pendingAttachments.some((a) => a.uploading) ||
+                                (!input.trim() && pendingAttachments.filter((a) => !a.uploading).length === 0)
                               }
                               className="w-8 h-8 rounded-full bg-talwa-teal flex items-center justify-center text-white disabled:opacity-40 shrink-0 transition-opacity"
                               aria-label="Send"

@@ -65,6 +65,17 @@ export async function addFileToConversationVectorStore(
 }
 
 /**
+ * Removes a file from the given vector store and deletes it from the Files API.
+ */
+export async function removeFileFromVectorStore(
+  vectorStoreId: string,
+  fileId: string
+): Promise<void> {
+  await openai.vectorStores.files.del(vectorStoreId, fileId)
+  await openai.files.del(fileId)
+}
+
+/**
  * Queries a vector store for chunks relevant to the given query string.
  * Returns up to `maxResults` text chunks (default 5), each capped at 800 chars.
  */

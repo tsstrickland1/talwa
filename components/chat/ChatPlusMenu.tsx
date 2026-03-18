@@ -14,7 +14,7 @@ interface ChatPlusMenuProps {
   disabled?: boolean
   onUseMyLocation: () => void
   onTagFeature: () => void
-  onFileSelected: (file: File) => void
+  onFileSelected: (files: File[]) => void
   onVisualize: () => void
 }
 
@@ -33,8 +33,8 @@ export function ChatPlusMenu({
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      if (file) onFileSelected(file)
+      const files = Array.from(e.target.files ?? [])
+      if (files.length > 0) onFileSelected(files)
       // Reset so the same file can be re-selected
       e.target.value = ''
     },
@@ -88,6 +88,7 @@ export function ChatPlusMenu({
         ref={fileInputRef}
         type="file"
         accept="image/*,.pdf,.txt,.md,.doc,.docx,.pptx,.xlsx,.csv,.html,.json"
+        multiple
         className="hidden"
         onChange={handleFileChange}
       />
