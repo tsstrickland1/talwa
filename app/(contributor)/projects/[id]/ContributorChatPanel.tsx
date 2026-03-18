@@ -666,13 +666,13 @@ export function ContributorChatPanel({
           {/* ── Chat / Share / About panel ── */}
           <div
             className={cn(
-              'flex flex-col md:w-1/3 md:min-w-[300px] md:shrink-0 md:flex-none',
+              'flex flex-col min-w-0 md:w-1/3 md:min-w-[300px] md:shrink-0 md:flex-none',
               mobileChatView === 'map' ? 'hidden md:flex' : 'flex flex-1'
             )}
           >
             {chatView === 'share' ? (
               /* ── Share pane ── */
-              <div className="flex flex-col flex-1 bg-talwa-cream">
+              <div className="flex flex-col flex-1 min-w-0 overflow-hidden bg-talwa-cream">
                 <div className="flex items-center gap-3 px-4 h-11 border-b border-border shrink-0 bg-background">
                   <button
                     onClick={() => setChatView('chat')}
@@ -683,8 +683,8 @@ export function ContributorChatPanel({
                   </button>
                   <span className="text-sm font-medium text-talwa-navy">Share</span>
                 </div>
-                <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-6 flex flex-col gap-5">
-                  <div>
+                <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col gap-5">
+                  <div className="min-w-0">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                       Project link
                     </p>
@@ -705,12 +705,12 @@ export function ContributorChatPanel({
                       </button>
                     </div>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                       Share message
                     </p>
                     <div className="bg-background rounded-lg border border-border px-3 py-2.5">
-                      <p className="text-sm text-talwa-navy leading-relaxed">
+                      <p className="text-sm text-talwa-navy leading-relaxed break-words">
                         {`Check out "${project.name}" on Talwa — a community engagement project near ${project.location}. Share your perspective and help shape the design.`}
                       </p>
                     </div>
