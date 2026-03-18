@@ -47,7 +47,7 @@ export async function getOrCreateConversationVectorStore(
  */
 export async function addFileToConversationVectorStore(
   vectorStoreId: string,
-  fileBuffer: Buffer,
+  fileBuffer: ArrayBuffer,
   filename: string,
   mimeType: string
 ): Promise<string> {

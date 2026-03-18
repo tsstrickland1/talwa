@@ -63,8 +63,8 @@ export async function POST(req: Request) {
 
   // Document: upload to OpenAI vector store
   const vectorStoreId = await getOrCreateConversationVectorStore(conversationId, admin)
-  const buffer = Buffer.from(await file.arrayBuffer())
-  await addFileToConversationVectorStore(vectorStoreId, buffer, file.name, file.type)
+  const arrayBuffer = await file.arrayBuffer()
+  await addFileToConversationVectorStore(vectorStoreId, arrayBuffer, file.name, file.type)
 
   return Response.json({ type: 'document', name: file.name, vectorStoreId })
 }
