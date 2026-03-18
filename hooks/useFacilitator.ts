@@ -48,9 +48,11 @@ export function computeCentroid(geojson: FeatureGeoJSON): Location {
 export function useFacilitator({
   projectId,
   conversationId,
+  vectorStoreId = null,
 }: {
   projectId: string
   conversationId: string | null
+  vectorStoreId?: string | null
 }) {
   const [activePin, setActivePin] = useState<Location | null>(null)
   const [activeFeature, setActiveFeature] = useState<Feature | null>(null)
@@ -84,6 +86,7 @@ export function useFacilitator({
       contributor_drew: contributorDrew,
       project_id: projectId,
       conversation_id: conversationId,
+      vector_store_id: vectorStoreId,
     },
     onToolCall: ({ toolCall }) => {
       switch (toolCall.toolName) {

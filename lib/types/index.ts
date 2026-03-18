@@ -138,6 +138,7 @@ export type Conversation = {
   creator_id: string
   last_message_at: string
   extraction_status: 'pending' | 'processing' | 'complete' | 'failed'
+  vector_store_id: string | null
   created_at: string
 }
 
@@ -244,6 +245,7 @@ export type FacilitatorRequestBody = {
   contributor_drew: boolean
   project_id: string
   conversation_id: string
+  vector_store_id: string | null
 }
 
 export type ExtractRequestBody = {
