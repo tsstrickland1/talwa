@@ -7,26 +7,18 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { Feature } from '@/lib/types'
 
 interface ChatPlusMenuProps {
-  features: Feature[]
-  activeFeature: Feature | null
   disabled?: boolean
   onUseMyLocation: () => void
-  onTagFeature: (feature: Feature) => void
+  onTagFeature: () => void
   onPhotoSelected: (file: File) => void
   onVisualize: () => void
 }
 
 export function ChatPlusMenu({
-  features,
-  activeFeature,
   disabled = false,
   onUseMyLocation,
   onTagFeature,
@@ -48,8 +40,6 @@ export function ChatPlusMenu({
     },
     [onPhotoSelected]
   )
-
-  const hasFeatures = features.length > 0
 
   return (
     <>
@@ -73,30 +63,10 @@ export function ChatPlusMenu({
           </DropdownMenuItem>
 
           {/* Tag a feature */}
-          {hasFeatures ? (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="gap-2.5">
-                <MapPin className="w-4 h-4 text-muted-foreground" />
-                <span>Tag a feature</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-52 max-h-64 overflow-y-auto">
-                {features.map((feature) => (
-                  <DropdownMenuItem
-                    key={feature.id}
-                    onSelect={() => onTagFeature(feature)}
-                    className="gap-2"
-                  >
-                    <span className="truncate">{feature.name}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          ) : (
-            <DropdownMenuItem disabled className="gap-2.5">
-              <MapPin className="w-4 h-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Tag a feature</span>
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem onSelect={onTagFeature} className="gap-2.5">
+            <MapPin className="w-4 h-4 text-muted-foreground" />
+            <span>Tag a feature</span>
+          </DropdownMenuItem>
 
           {/* Use my location */}
           <DropdownMenuItem onSelect={onUseMyLocation} className="gap-2.5">

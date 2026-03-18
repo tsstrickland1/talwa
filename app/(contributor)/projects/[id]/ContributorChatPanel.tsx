@@ -40,6 +40,7 @@ import { ChatContainer } from '@/components/chat/ChatContainer'
 import { ThemeSurface } from '@/components/chat/ThemeSurface'
 import { DataPointSurface } from '@/components/chat/DataPointSurface'
 import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu'
+import { TagFeaturePrompt } from '@/components/chat/TagFeaturePrompt'
 import { SketchWorkspace } from '@/components/chat/SketchWizard'
 import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
 import { createClient } from '@/lib/supabase/client'
@@ -106,6 +107,8 @@ export function ContributorChatPanel({
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [sketchWorkspaceOpen, setSketchWorkspaceOpen] = useState(false)
   const [pendingVisualize, setPendingVisualize] = useState(false)
+  const [featureTagMode, setFeatureTagMode] = useState(false)
+  const [pendingTagFeature, setPendingTagFeature] = useState(false)
 
   const isGuest = conversationId === null
 
@@ -202,7 +205,11 @@ export function ContributorChatPanel({
       setSketchWorkspaceOpen(true)
       setMobileChatView('chat')
     }
-  }, [activateDrawnFeature, pendingVisualize])
+    if (pendingTagFeature) {
+      setPendingTagFeature(false)
+      setMobileChatView('chat')
+    }
+  }, [activateDrawnFeature, pendingVisualize, pendingTagFeature])
 
   const handleDrawCancel = useCallback(() => {
     mapRef.current?.cancelDraw()
@@ -225,7 +232,12 @@ export function ContributorChatPanel({
     // If the visualization workspace is open, switch back to chat so the user
     // can see the selected feature reflected in the workspace's feature_select step
     if (sketchWorkspaceOpen) setMobileChatView('chat')
-  }, [pinLocation, sketchWorkspaceOpen])
+    // If in tag-feature mode, the selection completes the action — return to chat
+    if (featureTagMode) {
+      setFeatureTagMode(false)
+      setMobileChatView('chat')
+    }
+  }, [pinLocation, sketchWorkspaceOpen, featureTagMode])
 
   const handleFeatureDismiss = useCallback(() => {
     clearPin()
@@ -330,12 +342,15 @@ export function ContributorChatPanel({
     )
   }, [pinLocation])
 
-  const handleTagFeature = useCallback(
-    (feature: Feature) => {
-      handleFeatureSelect(feature)
-    },
-    [handleFeatureSelect]
-  )
+  const handleTagFeature = useCallback(() => {
+    setFeatureTagMode(true)
+  }, [])
+
+  const handleTagDrawNewFeature = useCallback(() => {
+    setFeatureTagMode(false)
+    setPendingTagFeature(true)
+    setMobileChatView('map')
+  }, [])
 
   const handlePhotoSelected = useCallback(
     async (file: File) => {
@@ -847,7 +862,16 @@ export function ContributorChatPanel({
 
                 {/* Chat input — always shown once history is loaded */}
                 {historyLoaded && (
-                  <div className="shrink-0 border-t border-border bg-talwa-cream px-4 py-3">
+                  <div className="shrink-0 border-t border-border bg-talwa-cream px-4 py-3 flex flex-col gap-2">
+                    {featureTagMode && !isGuest && (
+                      <TagFeaturePrompt
+                        activeFeature={activeFeature}
+                        onGoToMap={() => setMobileChatView('map')}
+                        onDrawNewFeature={handleTagDrawNewFeature}
+                        onConfirm={() => setFeatureTagMode(false)}
+                        onDismiss={() => setFeatureTagMode(false)}
+                      />
+                    )}
                     {isGuest ? (
                       /* Guest CTA — clicking opens auth gate */
                       <div className="flex items-center gap-2">
@@ -907,8 +931,6 @@ export function ContributorChatPanel({
 
                           <div className="flex items-center gap-2">
                             <ChatPlusMenu
-                              features={featuresState}
-                              activeFeature={activeFeature}
                               disabled={isLoading || isUploadingImage}
                               onUseMyLocation={handleUseMyLocation}
                               onTagFeature={handleTagFeature}
