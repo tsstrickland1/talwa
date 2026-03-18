@@ -105,6 +105,9 @@ export function ContributorChatPanel({
   const [sketchesLoading, setSketchesLoading] = useState(false)
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [pendingDocumentAttachment, setPendingDocumentAttachment] = useState<{ name: string } | null>(null)
+  const [isUploadingDocument, setIsUploadingDocument] = useState(false)
+  const [vectorStoreId, setVectorStoreId] = useState<string | null>(null)
   const [sketchWorkspaceOpen, setSketchWorkspaceOpen] = useState(false)
   const [pendingVisualize, setPendingVisualize] = useState(false)
   const [featureTagMode, setFeatureTagMode] = useState(false)
@@ -131,6 +134,7 @@ export function ContributorChatPanel({
   } = useFacilitator({
     projectId: project.id,
     conversationId,
+    vectorStoreId,
   })
 
   const guardedSubmit = useCallback(
@@ -155,9 +159,13 @@ export function ContributorChatPanel({
         setPendingImageUrl(null)
         return
       }
+      if (pendingDocumentAttachment) {
+        // The document is already in the vector store; just clear the pending chip and send.
+        setPendingDocumentAttachment(null)
+      }
       handleSubmit(e)
     },
-    [isGuest, handleSubmit, pendingImageUrl, input, append, setInput]
+    [isGuest, handleSubmit, pendingImageUrl, pendingDocumentAttachment, input, append, setInput]
   )
 
   const guardedAppend = useCallback(
@@ -352,20 +360,39 @@ export function ContributorChatPanel({
     setMobileChatView('map')
   }, [])
 
-  const handlePhotoSelected = useCallback(
+  const handleFileSelected = useCallback(
     async (file: File) => {
       if (!conversationId) return
-      setIsUploadingImage(true)
-      try {
-        const supabase = createClient()
-        const ext = getFileExtension(file)
-        const path = storagePaths.conversationAttachment(conversationId, ext)
-        const url = await uploadImage(supabase, 'conversation-attachments', path, file)
-        setPendingImageUrl(url)
-      } catch (err) {
-        console.error('Photo upload failed:', err)
-      } finally {
-        setIsUploadingImage(false)
+      const isImage = file.type.startsWith('image/')
+      if (isImage) {
+        setIsUploadingImage(true)
+        try {
+          const supabase = createClient()
+          const ext = getFileExtension(file)
+          const path = storagePaths.conversationAttachment(conversationId, ext)
+          const url = await uploadImage(supabase, 'conversation-attachments', path, file)
+          setPendingImageUrl(url)
+        } catch (err) {
+          console.error('Photo upload failed:', err)
+        } finally {
+          setIsUploadingImage(false)
+        }
+      } else {
+        setIsUploadingDocument(true)
+        try {
+          const formData = new FormData()
+          formData.append('file', file)
+          formData.append('conversation_id', conversationId)
+          const res = await fetch('/api/facilitator/upload', { method: 'POST', body: formData })
+          if (!res.ok) throw new Error('Upload failed')
+          const data = await res.json() as { type: 'document'; name: string; vectorStoreId: string }
+          setVectorStoreId(data.vectorStoreId)
+          setPendingDocumentAttachment({ name: data.name })
+        } catch (err) {
+          console.error('Document upload failed:', err)
+        } finally {
+          setIsUploadingDocument(false)
+        }
       }
     },
     [conversationId]
@@ -929,12 +956,38 @@ export function ContributorChatPanel({
                             </div>
                           )}
 
+                          {/* Pending document chip */}
+                          {(pendingDocumentAttachment || isUploadingDocument) && (
+                            <div className="flex items-center gap-2 px-1">
+                              <div className="flex items-center gap-1.5 rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground min-w-0">
+                                {isUploadingDocument ? (
+                                  <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                                ) : (
+                                  <PlusCircle className="w-3 h-3 shrink-0 text-talwa-teal" />
+                                )}
+                                <span className="truncate max-w-[160px]">
+                                  {isUploadingDocument ? 'Uploading…' : pendingDocumentAttachment?.name}
+                                </span>
+                              </div>
+                              {!isUploadingDocument && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingDocumentAttachment(null)}
+                                  aria-label="Remove document"
+                                  className="text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+
                           <div className="flex items-center gap-2">
                             <ChatPlusMenu
-                              disabled={isLoading || isUploadingImage}
+                              disabled={isLoading || isUploadingImage || isUploadingDocument}
                               onUseMyLocation={handleUseMyLocation}
                               onTagFeature={handleTagFeature}
-                              onPhotoSelected={handlePhotoSelected}
+                              onFileSelected={handleFileSelected}
                               onVisualize={handleOpenSketchWorkspace}
                             />
                             <textarea
@@ -953,7 +1006,8 @@ export function ContributorChatPanel({
                               disabled={
                                 isLoading ||
                                 isUploadingImage ||
-                                (!input.trim() && !pendingImageUrl)
+                                isUploadingDocument ||
+                                (!input.trim() && !pendingImageUrl && !pendingDocumentAttachment)
                               }
                               className="w-8 h-8 rounded-full bg-talwa-teal flex items-center justify-center text-white disabled:opacity-40 shrink-0 transition-opacity"
                               aria-label="Send"

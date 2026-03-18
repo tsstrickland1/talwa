@@ -2,6 +2,7 @@ import { streamText, tool } from 'ai'
 import type { CoreMessage } from 'ai'
 import { z } from 'zod'
 import { getModel, MODELS } from '@/lib/openai'
+import { queryVectorStore } from '@/lib/openai/vectorStore'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildFacilitatorSystemPrompt } from '@/lib/prompts'
@@ -12,7 +13,7 @@ export const maxDuration = 60
 
 export async function POST(req: Request) {
   const body = (await req.json()) as FacilitatorRequestBody
-  const { messages, location, feature_id, contributor_drew, project_id, conversation_id } = body
+  const { messages, location, feature_id, contributor_drew, project_id, conversation_id, vector_store_id } = body
 
   const supabase = await createServerClient()
   const {
@@ -73,6 +74,23 @@ export async function POST(req: Request) {
     })
   ).then((results) => results.filter(Boolean) as (ProjectFile & { signed_url: string })[])
 
+  // Query attached documents if the conversation has a vector store
+  let attachedDocumentChunks: string[] | undefined
+  if (vector_store_id) {
+    const lastUserMessage = messages[messages.length - 1]
+    const queryText =
+      typeof lastUserMessage?.content === 'string'
+        ? lastUserMessage.content
+        : (lastUserMessage?.content ?? [])
+            .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+            .map((b) => b.text)
+            .join(' ')
+
+    if (queryText.trim()) {
+      attachedDocumentChunks = await queryVectorStore(vector_store_id, queryText, 5)
+    }
+  }
+
   const systemPrompt = buildFacilitatorSystemPrompt({
     project: projectResult.data,
     features,
@@ -82,6 +100,7 @@ export async function POST(req: Request) {
     location: location ?? null,
     activeFeature,
     contributorDrew: contributor_drew ?? false,
+    attachedDocumentChunks,
   })
 
   // Persist the user's message before streaming

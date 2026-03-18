@@ -9,6 +9,7 @@ export function buildFacilitatorSystemPrompt({
   location,
   activeFeature,
   contributorDrew = false,
+  attachedDocumentChunks,
 }: {
   project: Project
   features: Feature[]
@@ -18,6 +19,7 @@ export function buildFacilitatorSystemPrompt({
   location?: Location | null
   activeFeature?: Feature | null
   contributorDrew?: boolean
+  attachedDocumentChunks?: string[]
 }): string {
   const featureList = features.length > 0
     ? features.map(f => `- ${f.name} (${f.type}): ${f.description}`).join('\n')
@@ -35,6 +37,11 @@ export function buildFacilitatorSystemPrompt({
         )
         .join('\n')
     : null
+
+  const documentChunksContext =
+    attachedDocumentChunks && attachedDocumentChunks.length > 0
+      ? attachedDocumentChunks.join('\n---\n')
+      : null
 
   const themesContext = existingThemes.length > 0
     ? existingThemes.map(t => `[${t.id}] "${t.name}": ${t.summary}`).join('\n')
@@ -64,6 +71,9 @@ ${researchQuestions}
 
 ${filesContext ? `PROJECT REFERENCE DOCUMENTS (background materials uploaded by the project team — use these to inform your understanding of the project context, but do not quote them verbatim to contributors):
 ${filesContext}
+
+` : ''}${documentChunksContext ? `ATTACHED DOCUMENTS (files shared by the contributor in this conversation — use these to answer their questions and inform your responses):
+${documentChunksContext}
 
 ` : ''}EMERGING COMMUNITY THEMES (what others have been saying — surface relevant ones during conversation using the surface_theme tool):
 ${themesContext}
