@@ -11,6 +11,7 @@ import {
   MoreHorizontal,
   Clock,
   HelpCircle,
+  PlusCircle,
   ArrowUp,
   Compass,
   PanelLeft,
