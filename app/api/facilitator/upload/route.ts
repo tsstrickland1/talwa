@@ -6,6 +6,7 @@ import {
   addFileToConversationVectorStore,
 } from '@/lib/openai/vectorStore'
 
+
 const IMAGE_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -58,13 +59,13 @@ export async function POST(req: Request) {
       return new Response('Upload failed', { status: 500 })
     }
     const { data } = admin.storage.from('conversation-attachments').getPublicUrl(path)
-    return Response.json({ type: 'image', url: data.publicUrl })
+    return Response.json({ type: 'image', url: data.publicUrl, storagePath: path })
   }
 
   // Document: upload to OpenAI vector store
   const vectorStoreId = await getOrCreateConversationVectorStore(conversationId, admin)
   const arrayBuffer = await file.arrayBuffer()
-  await addFileToConversationVectorStore(vectorStoreId, arrayBuffer, file.name, file.type)
+  const fileId = await addFileToConversationVectorStore(vectorStoreId, arrayBuffer, file.name, file.type)
 
-  return Response.json({ type: 'document', name: file.name, vectorStoreId })
+  return Response.json({ type: 'document', name: file.name, vectorStoreId, fileId })
 }
