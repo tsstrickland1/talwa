@@ -115,7 +115,7 @@ export function InsightsPanelClient({
       </div>
 
       {/* Desktop: split layout (768px and above) */}
-      <div className="hidden md:flex h-screen">
+      <div className="hidden md:flex h-full">
         {/* Left: Map + Themes */}
         <div className="w-1/2 border-r border-border flex flex-col">
           <div className="h-1/2 border-b border-border">

@@ -18,6 +18,7 @@ import {
   UserCircle,
   Plus,
   Menu,
+  Globe,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -128,6 +129,20 @@ export function CreatorNav({ user, projects = [], creatorProfiles = [] }: Creato
           </Link>
         </Button>
 
+        {/* Explore link */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="justify-start gap-2 mb-1 text-muted-foreground"
+          asChild
+          onClick={onNavClick}
+        >
+          <Link href="/explore">
+            <Globe className="h-4 w-4" />
+            Browse projects
+          </Link>
+        </Button>
+
         {/* Creator profiles / organizations */}
         {creatorProfiles.length > 0 && (
           <>
@@ -144,7 +159,7 @@ export function CreatorNav({ user, projects = [], creatorProfiles = [] }: Creato
                 asChild
                 onClick={onNavClick}
               >
-                <Link href={cp.type === 'organization' ? `/organizations/${cp.id}` : '/dashboard'}>
+                <Link href={cp.type === 'organization' ? `/organizations/${cp.id}` : `/profiles/${cp.id}`}>
                   {cp.type === 'organization' ? (
                     <Building2 className="h-3.5 w-3.5 shrink-0" />
                   ) : (
