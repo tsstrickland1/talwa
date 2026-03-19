@@ -51,14 +51,44 @@ export function ChatContainer({
             </div>
           )}
           {messages
-            .filter((m) => m.role === 'user' || (m.content && m.content.trim().length > 0))
-            .map((message) => (
-            <MessageBubble
-              key={message.id}
-              role={message.role as 'user' | 'assistant'}
-              content={message.content}
-            />
-          ))}
+            .filter((m) => {
+              if (m.role === 'user') return true
+              // For assistant messages, check for actual text content.
+              // content may be a string or an array of content parts (AI SDK v4).
+              const c = m.content
+              if (typeof c === 'string') return c.trim().length > 0
+              if (Array.isArray(c)) {
+                return c.some(
+                  (part: unknown) =>
+                    typeof part === 'object' &&
+                    part !== null &&
+                    'type' in part &&
+                    (part as { type: string }).type === 'text' &&
+                    'text' in part &&
+                    ((part as { text: string }).text ?? '').trim().length > 0
+                )
+              }
+              return !!c
+            })
+            .map((message) => {
+              // Extract text content — handle both string and array forms
+              const text =
+                typeof message.content === 'string'
+                  ? message.content
+                  : Array.isArray(message.content)
+                    ? (message.content as Array<{ type: string; text?: string }>)
+                        .filter((p) => p.type === 'text')
+                        .map((p) => p.text ?? '')
+                        .join('')
+                    : String(message.content ?? '')
+              return (
+                <MessageBubble
+                  key={message.id}
+                  role={message.role as 'user' | 'assistant'}
+                  content={text}
+                />
+              )
+            })}
           {isLoading && messages[messages.length - 1]?.role === 'user' && (
             <MessageBubble role="assistant" content="" isLoading />
           )}
