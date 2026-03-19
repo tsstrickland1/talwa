@@ -55,10 +55,11 @@ export function ChatContainer({
               if (m.role === 'user') return true
               // For assistant messages, check for actual text content.
               // content may be a string or an array of content parts (AI SDK v4).
-              const c = m.content
+              // Cast to unknown because the runtime type can be broader than the TS definition.
+              const c: unknown = m.content
               if (typeof c === 'string') return c.trim().length > 0
               if (Array.isArray(c)) {
-                return c.some(
+                return (c as unknown[]).some(
                   (part: unknown) =>
                     typeof part === 'object' &&
                     part !== null &&
