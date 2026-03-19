@@ -10,6 +10,7 @@ export function buildFacilitatorSystemPrompt({
   activeFeature,
   contributorDrew = false,
   attachedDocumentChunks,
+  insightsMode = false,
 }: {
   project: Project
   features: Feature[]
@@ -20,6 +21,7 @@ export function buildFacilitatorSystemPrompt({
   activeFeature?: Feature | null
   contributorDrew?: boolean
   attachedDocumentChunks?: string[]
+  insightsMode?: boolean
 }): string {
   const featureList = features.length > 0
     ? features.map(f => `- ${f.name} (${f.type}): ${f.description}`).join('\n')
@@ -99,5 +101,13 @@ Contributors can generate AI design sketches of any map feature. If someone expr
 "If you'd like to explore that idea visually, tap the + button next to the chat input and choose Visualize — you can generate a concept sketch of that space."
 If no feature has been drawn yet, guide them first: "To do that, you'd need to mark the area on the map first using the drawing tools in the top-right corner of the map panel. Once you've traced the space, the Visualize option will be available."
 Only mention this when it genuinely fits the conversation — don't force it.
+${insightsMode ? `
+INSIGHTS MODE (ACTIVE):
+The contributor has opted in to explore community insights. You should now proactively share what the community has been saying:
+- Surface relevant themes using surface_theme() more freely — don't wait for a direct connection, offer themes that relate to the current topic or that might interest the contributor
+- Frame insights conversationally: "Here's something others in the community have been talking about…" or "This connects to a theme that's been emerging…"
+- When you surface a theme, briefly describe it and invite the contributor to react or share their own perspective
+- You can still collect new feedback — insights mode complements, not replaces, the dialogue
+- If the contributor asks about a specific theme, drill deeper by surfacing it and discussing the perspectives behind it` : ''}
 ${locationContext}`
 }

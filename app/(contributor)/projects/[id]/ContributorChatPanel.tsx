@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRef, useCallback, useState } from 'react'
+import { useRef, useCallback, useState, useMemo } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -29,6 +29,7 @@ import {
   ChevronDown,
   Loader2,
   FileText,
+  Lightbulb,
   LogOut,
 } from 'lucide-react'
 import {
@@ -48,7 +49,7 @@ import { DrawFeatureModal } from '@/components/map/DrawFeatureModal'
 import { NavUserMenu } from '@/components/layout/NavUserMenu'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import type { Feature, FeatureGeoJSON, FeatureType, Project, Sketch, User } from '@/lib/types'
+import type { DataPoint, Feature, FeatureGeoJSON, FeatureType, Project, Sketch, Theme, User } from '@/lib/types'
 import type { ContributorMapHandle } from '@/components/map/ContributorMap'
 
 const ContributorMap = dynamic(
@@ -61,6 +62,8 @@ type CreatorSummary = Pick<User, 'id' | 'name_first' | 'name_last' | 'avatar'>
 type Props = {
   project: Project
   features: Feature[]
+  themes: Theme[]
+  dataPoints: DataPoint[]
   conversationId: string | null
   userId: string | null
   mapboxToken: string
@@ -119,6 +122,8 @@ function getFileTypeLabel(mimeType: string): string {
 export function ContributorChatPanel({
   project,
   features: initialFeatures,
+  themes,
+  dataPoints,
   conversationId,
   userId,
   mapboxToken,
@@ -175,11 +180,25 @@ export function ContributorChatPanel({
     clearSurface,
     append,
     activateDrawnFeature,
+    insightsMode,
+    toggleInsightsMode,
   } = useFacilitator({
     projectId: project.id,
     conversationId,
     vectorStoreId,
   })
+
+  // Compute data points to highlight on map when a theme is surfaced
+  const highlightedDataPoints = useMemo(() => {
+    if (surfacedContent?.type !== 'theme') return []
+    return dataPoints.filter((dp) => dp.theme_ids.includes(surfacedContent.theme_id))
+  }, [surfacedContent, dataPoints])
+
+  // Resolve the surfaced theme object for the ThemeSurface card
+  const surfacedTheme = useMemo(() => {
+    if (surfacedContent?.type !== 'theme') return null
+    return themes.find((t) => t.id === surfacedContent.theme_id) ?? null
+  }, [surfacedContent, themes])
 
   const guardedSubmit = useCallback(
     (e: FormEvent<HTMLFormElement>) => {
@@ -301,6 +320,20 @@ export function ContributorChatPanel({
     setFeaturePanelState('closed')
     setFeatureSketches([])
   }, [clearPin])
+
+  const handleThemeClick = useCallback(
+    (theme: Theme) => {
+      if (isGuest) {
+        setShowAuthGate(true)
+        return
+      }
+      append({
+        role: 'user',
+        content: `Tell me more about the community theme "${theme.name}".`,
+      })
+    },
+    [isGuest, append]
+  )
 
   const handleEditStart = useCallback(() => {
     if (!selectedFeature) return
@@ -731,6 +764,7 @@ export function ContributorChatPanel({
                 }}
                 onFeatureDraw={handleFeatureDraw}
                 onGeometryUpdate={setEditingGeometry}
+                highlightedDataPoints={highlightedDataPoints}
                 className="h-full"
               />
               <DrawFeatureModal
@@ -766,6 +800,12 @@ export function ContributorChatPanel({
                 onEditStart={handleEditStart}
                 onEditCancel={handleEditCancel}
                 onEditSave={handleEditSave}
+                featureThemes={themes.filter((t) =>
+                  dataPoints.some(
+                    (dp) => dp.feature_id === selectedFeature.id && dp.theme_ids.includes(t.id)
+                  )
+                )}
+                onThemeClick={handleThemeClick}
               />
             )}
           </div>
@@ -933,8 +973,24 @@ export function ContributorChatPanel({
             ) : (
               /* ── Chat pane ── */
               <div className="flex flex-col flex-1 min-h-0 bg-talwa-cream">
-                {/* History icon */}
-                <div className="flex justify-end px-4 pt-3 pb-1 shrink-0">
+                {/* Chat toolbar */}
+                <div className="flex items-center justify-end gap-2 px-4 pt-3 pb-1 shrink-0">
+                  {/* Explore insights toggle */}
+                  {themes.length > 0 && !isGuest && (
+                    <button
+                      onClick={toggleInsightsMode}
+                      className={cn(
+                        'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors',
+                        insightsMode
+                          ? 'bg-talwa-olive-light/40 text-talwa-olive-black'
+                          : 'text-muted-foreground/60 hover:text-talwa-navy hover:bg-muted/50'
+                      )}
+                      aria-label="Toggle explore insights"
+                    >
+                      <Lightbulb className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Insights</span>
+                    </button>
+                  )}
                   <button
                     className="text-muted-foreground/50 hover:text-talwa-navy transition-colors"
                     aria-label="Conversation history"
@@ -989,7 +1045,11 @@ export function ContributorChatPanel({
                           onPublished={handleSketchPublished}
                         />
                       ) : surfacedContent?.type === 'theme' ? (
-                        <ThemeSurface theme={null} onDismiss={clearSurface} />
+                        <ThemeSurface
+                          theme={surfacedTheme}
+                          dataPoints={highlightedDataPoints}
+                          onDismiss={clearSurface}
+                        />
                       ) : surfacedContent?.type === 'data_point' ? (
                         <DataPointSurface dataPoint={null} onDismiss={clearSurface} />
                       ) : null
@@ -1202,6 +1262,8 @@ type FeatureDetailPanelProps = {
   onEditStart: () => void
   onEditCancel: () => void
   onEditSave: (featureId: string, updates: { name: string; type: FeatureType; description: string }) => void
+  featureThemes?: Theme[]
+  onThemeClick?: (theme: Theme) => void
 }
 
 function FeatureDetailPanel({
@@ -1216,6 +1278,8 @@ function FeatureDetailPanel({
   onEditStart,
   onEditCancel,
   onEditSave,
+  featureThemes = [],
+  onThemeClick,
 }: FeatureDetailPanelProps) {
   const [editName, setEditName] = useState(feature.name)
   const [editType, setEditType] = useState<FeatureType>(feature.type)
@@ -1374,6 +1438,22 @@ function FeatureDetailPanel({
         <p className="px-4 pb-3 text-xs text-muted-foreground leading-relaxed line-clamp-3">
           {feature.description}
         </p>
+      )}
+
+      {/* Associated themes */}
+      {featureThemes.length > 0 && (
+        <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+          {featureThemes.map((theme) => (
+            <button
+              key={theme.id}
+              onClick={() => onThemeClick?.(theme)}
+              className="inline-flex items-center gap-1 rounded-full bg-talwa-sky/60 px-2.5 py-1 text-[11px] font-medium text-talwa-teal hover:bg-talwa-sky transition-colors"
+            >
+              <MessageSquare className="w-3 h-3" />
+              {theme.name}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   )

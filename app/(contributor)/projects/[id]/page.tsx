@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ContributorChatPanel } from './ContributorChatPanel'
-import type { Project, Feature, User } from '@/lib/types'
+import type { Project, Feature, Theme, DataPoint, User } from '@/lib/types'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -27,10 +27,11 @@ export default async function ContributorProjectPage({ params }: Props) {
 
   if (!project) notFound()
 
-  const { data: features } = await admin
-    .from('features')
-    .select('*')
-    .eq('project_id', id)
+  const [{ data: features }, { data: themes }, { data: dataPoints }] = await Promise.all([
+    admin.from('features').select('*').eq('project_id', id),
+    admin.from('themes').select('*').eq('project_id', id),
+    admin.from('data_points').select('*').eq('project_id', id),
+  ])
 
   // Resolve creator profile for display
   const { data: creatorProfile } = await admin
@@ -57,6 +58,8 @@ export default async function ContributorProjectPage({ params }: Props) {
         <ContributorChatPanel
           project={project as Project}
           features={(features ?? []) as Feature[]}
+          themes={(themes ?? []) as Theme[]}
+          dataPoints={(dataPoints ?? []) as DataPoint[]}
           conversationId={null}
           userId={null}
           mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
@@ -105,6 +108,8 @@ export default async function ContributorProjectPage({ params }: Props) {
         <ContributorChatPanel
           project={project as Project}
           features={(features ?? []) as Feature[]}
+          themes={(themes ?? []) as Theme[]}
+          dataPoints={(dataPoints ?? []) as DataPoint[]}
           conversationId={existing.id}
           userId={authUser.id}
           mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
