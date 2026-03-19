@@ -5,7 +5,17 @@ export const openaiProvider = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-// Helper to get a model via the Responses API (not Chat Completions)
-export function getModel(modelId: string) {
-  return openaiProvider.responses(modelId)
+/**
+ * Get a model via the Responses API.
+ * Pass `reasoning: true` only for tasks that benefit from chain-of-thought
+ * (e.g. extraction, synthesis). Conversational endpoints should leave it off
+ * to avoid latency and leaked reasoning tokens.
+ */
+export function getModel(
+  modelId: string,
+  options?: { reasoning?: boolean }
+) {
+  return openaiProvider.responses(modelId, {
+    reasoning: options?.reasoning ? { effort: 'medium' } : undefined,
+  })
 }
