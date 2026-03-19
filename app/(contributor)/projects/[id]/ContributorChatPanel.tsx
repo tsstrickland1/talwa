@@ -27,10 +27,8 @@ import {
   Minimize2,
   Maximize2,
   ChevronDown,
-  ChevronRight,
   Loader2,
   FileText,
-  Lightbulb,
   MapPin,
   LogOut,
 } from 'lucide-react'
@@ -182,13 +180,16 @@ export function ContributorChatPanel({
     clearSurface,
     append,
     activateDrawnFeature,
-    insightsMode,
-    toggleInsightsMode,
   } = useFacilitator({
     projectId: project.id,
     conversationId,
     vectorStoreId,
   })
+
+  // Track which theme is open in the insights detail view (replaces chat pane)
+  const [insightsDetailThemeId, setInsightsDetailThemeId] = useState<string | null>(null)
+  // Track which feature to highlight in map from the insights detail view
+  const [insightsFocusedFeatureId, setInsightsFocusedFeatureId] = useState<string | null>(null)
 
   // Compute data points to highlight on map when a theme is surfaced
   const highlightedDataPoints = useMemo(() => {
@@ -196,11 +197,32 @@ export function ContributorChatPanel({
     return dataPoints.filter((dp) => dp.theme_ids.includes(surfacedContent.theme_id))
   }, [surfacedContent, dataPoints])
 
+  // Feature IDs to highlight on map — from surfaced theme data points, or focused data point in detail view
+  const highlightedFeatureIds = useMemo(() => {
+    if (insightsFocusedFeatureId) return [insightsFocusedFeatureId]
+    if (surfacedContent?.type !== 'theme') return []
+    return [...new Set(
+      dataPoints
+        .filter((dp) => dp.theme_ids.includes(surfacedContent.theme_id) && dp.feature_id)
+        .map((dp) => dp.feature_id!)
+    )]
+  }, [surfacedContent, dataPoints, insightsFocusedFeatureId])
+
   // Resolve the surfaced theme object for the ThemeSurface card
   const surfacedTheme = useMemo(() => {
     if (surfacedContent?.type !== 'theme') return null
     return themes.find((t) => t.id === surfacedContent.theme_id) ?? null
   }, [surfacedContent, themes])
+
+  // Resolve the theme + data points for the insights detail view
+  const insightsDetailTheme = useMemo(
+    () => (insightsDetailThemeId ? themes.find((t) => t.id === insightsDetailThemeId) ?? null : null),
+    [insightsDetailThemeId, themes]
+  )
+  const insightsDetailDataPoints = useMemo(
+    () => (insightsDetailThemeId ? dataPoints.filter((dp) => dp.theme_ids.includes(insightsDetailThemeId)) : []),
+    [insightsDetailThemeId, dataPoints]
+  )
 
   const guardedSubmit = useCallback(
     (e: FormEvent<HTMLFormElement>) => {
@@ -322,20 +344,6 @@ export function ContributorChatPanel({
     setFeaturePanelState('closed')
     setFeatureSketches([])
   }, [clearPin])
-
-  const handleThemeClick = useCallback(
-    (theme: Theme) => {
-      if (isGuest) {
-        setShowAuthGate(true)
-        return
-      }
-      append({
-        role: 'user',
-        content: `Tell me more about the community theme "${theme.name}".`,
-      })
-    },
-    [isGuest, append]
-  )
 
   const handleEditStart = useCallback(() => {
     if (!selectedFeature) return
@@ -767,6 +775,7 @@ export function ContributorChatPanel({
                 onFeatureDraw={handleFeatureDraw}
                 onGeometryUpdate={setEditingGeometry}
                 highlightedDataPoints={highlightedDataPoints}
+                highlightedFeatureIds={highlightedFeatureIds}
                 className="h-full"
               />
               <DrawFeatureModal
@@ -802,13 +811,6 @@ export function ContributorChatPanel({
                 onEditStart={handleEditStart}
                 onEditCancel={handleEditCancel}
                 onEditSave={handleEditSave}
-                featureThemes={themes.filter((t) =>
-                  dataPoints.some(
-                    (dp) => dp.feature_id === selectedFeature.id && dp.theme_ids.includes(t.id)
-                  )
-                )}
-                featureDataPoints={dataPoints.filter((dp) => dp.feature_id === selectedFeature.id)}
-                onThemeClick={handleThemeClick}
               />
             )}
           </div>
@@ -820,6 +822,8 @@ export function ContributorChatPanel({
                 feature={selectedFeature}
                 sketches={featureSketches}
                 sketchesLoading={sketchesLoading}
+                featureDataPoints={dataPoints.filter((dp) => dp.feature_id === selectedFeature.id)}
+                themes={themes}
                 canEdit={userId !== null && userId === selectedFeature.creator_id}
                 onBackToMap={handlePanelBackToMap}
                 onDismiss={handleFeatureDismiss}
@@ -835,6 +839,8 @@ export function ContributorChatPanel({
                 feature={selectedFeature}
                 sketches={featureSketches}
                 sketchesLoading={sketchesLoading}
+                featureDataPoints={dataPoints.filter((dp) => dp.feature_id === selectedFeature.id)}
+                themes={themes}
                 canEdit={userId !== null && userId === selectedFeature.creator_id}
                 onBackToMap={handlePanelBackToMap}
                 onDismiss={handleFeatureDismiss}
@@ -973,27 +979,22 @@ export function ContributorChatPanel({
                   </p>
                 </div>
               </div>
+            ) : insightsDetailTheme ? (
+              /* ── Insights detail view (replaces chat pane) ── */
+              <InsightsDetailView
+                theme={insightsDetailTheme}
+                dataPoints={insightsDetailDataPoints}
+                features={featuresState}
+                focusedFeatureId={insightsFocusedFeatureId}
+                onBack={() => { setInsightsDetailThemeId(null); setInsightsFocusedFeatureId(null) }}
+                onFocusFeature={(featureId) => setInsightsFocusedFeatureId(featureId)}
+                onSwitchToMap={() => setMobileChatView('map')}
+              />
             ) : (
               /* ── Chat pane ── */
               <div className="flex flex-col flex-1 min-h-0 bg-talwa-cream">
                 {/* Chat toolbar */}
                 <div className="flex items-center justify-end gap-2 px-4 pt-3 pb-1 shrink-0">
-                  {/* Explore insights toggle */}
-                  {themes.length > 0 && !isGuest && (
-                    <button
-                      onClick={toggleInsightsMode}
-                      className={cn(
-                        'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors',
-                        insightsMode
-                          ? 'bg-talwa-olive-light/40 text-talwa-olive-black'
-                          : 'text-muted-foreground/60 hover:text-talwa-navy hover:bg-muted/50'
-                      )}
-                      aria-label="Toggle explore insights"
-                    >
-                      <Lightbulb className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Insights</span>
-                    </button>
-                  )}
                   <button
                     className="text-muted-foreground/50 hover:text-talwa-navy transition-colors"
                     aria-label="Conversation history"
@@ -1052,6 +1053,12 @@ export function ContributorChatPanel({
                           theme={surfacedTheme}
                           dataPoints={highlightedDataPoints}
                           onDismiss={clearSurface}
+                          onDetailView={
+                            surfacedContent?.type === 'theme'
+                              ? () => setInsightsDetailThemeId(surfacedContent.theme_id)
+                              : undefined
+                          }
+                          onViewMap={() => setMobileChatView('map')}
                         />
                       ) : surfacedContent?.type === 'data_point' ? (
                         <DataPointSurface dataPoint={null} onDismiss={clearSurface} />
@@ -1265,9 +1272,6 @@ type FeatureDetailPanelProps = {
   onEditStart: () => void
   onEditCancel: () => void
   onEditSave: (featureId: string, updates: { name: string; type: FeatureType; description: string }) => void
-  featureThemes?: Theme[]
-  featureDataPoints?: DataPoint[]
-  onThemeClick?: (theme: Theme) => void
 }
 
 function FeatureDetailPanel({
@@ -1282,15 +1286,11 @@ function FeatureDetailPanel({
   onEditStart,
   onEditCancel,
   onEditSave,
-  featureThemes = [],
-  featureDataPoints = [],
-  onThemeClick,
 }: FeatureDetailPanelProps) {
   const [editName, setEditName] = useState(feature.name)
   const [editType, setEditType] = useState<FeatureType>(feature.type)
   const [editDescription, setEditDescription] = useState(feature.description)
   const [saving, setSaving] = useState(false)
-  const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null)
 
   const featureId = feature.id
   const prevFeatureIdRef = useRef(featureId)
@@ -1299,16 +1299,7 @@ function FeatureDetailPanel({
     setEditName(feature.name)
     setEditType(feature.type)
     setEditDescription(feature.description)
-    setSelectedInsightId(null)
   }
-
-  const selectedInsight = selectedInsightId
-    ? featureThemes.find((t) => t.id === selectedInsightId) ?? null
-    : null
-
-  const insightDataPoints = selectedInsight
-    ? featureDataPoints.filter((dp) => dp.theme_ids.includes(selectedInsight.id))
-    : []
 
   async function handleSave() {
     setSaving(true)
@@ -1455,106 +1446,21 @@ function FeatureDetailPanel({
         </p>
       )}
 
-      {/* Insights section */}
-      {featureThemes.length > 0 && (
-        <div className="border-t border-talwa-sky/30">
-          {selectedInsight ? (
-            /* ── Theme detail view ── */
-            <div className="px-4 py-3">
-              <button
-                onClick={() => setSelectedInsightId(null)}
-                className="flex items-center gap-1 text-[11px] font-medium text-talwa-teal hover:text-talwa-teal/80 transition-colors mb-2"
-              >
-                <ChevronLeft className="w-3 h-3" />
-                Insights
-              </button>
-              <h4 className="font-heading font-semibold text-talwa-navy text-[13px] leading-tight mb-1">
-                {selectedInsight.name}
-              </h4>
-              <p className="text-[11px] text-muted-foreground leading-relaxed mb-2">
-                {selectedInsight.summary}
-              </p>
-              {insightDataPoints.length > 0 && (
-                <div className="max-h-[120px] overflow-y-auto space-y-2">
-                  {insightDataPoints.map((dp) => (
-                    <div
-                      key={dp.id}
-                      className="flex items-start gap-1.5 rounded-lg bg-talwa-cream/60 px-2.5 py-2"
-                    >
-                      {dp.location && (
-                        <MapPin className="w-3 h-3 text-talwa-burnt-orange shrink-0 mt-0.5" />
-                      )}
-                      <p className="text-[11px] text-talwa-navy/80 leading-relaxed italic">
-                        &ldquo;{dp.content}&rdquo;
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {onThemeClick && (
-                <button
-                  onClick={() => onThemeClick(selectedInsight)}
-                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-talwa-teal hover:text-talwa-teal/80 transition-colors"
-                >
-                  <MessageSquare className="w-3 h-3" />
-                  Ask in chat
-                </button>
-              )}
-            </div>
-          ) : (
-            /* ── Theme list view ── */
-            <div className="px-4 py-3">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Lightbulb className="w-3.5 h-3.5 text-talwa-olive" />
-                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                  Insights
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  ({featureThemes.length})
-                </span>
-              </div>
-              <div className="max-h-[180px] overflow-y-auto space-y-1">
-                {featureThemes.map((theme) => {
-                  const count = featureDataPoints.filter((dp) =>
-                    dp.theme_ids.includes(theme.id)
-                  ).length
-                  return (
-                    <button
-                      key={theme.id}
-                      onClick={() => setSelectedInsightId(theme.id)}
-                      className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2.5 text-left hover:bg-talwa-sky/30 transition-colors group"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <span className="block text-[13px] font-medium text-talwa-navy leading-tight truncate">
-                          {theme.name}
-                        </span>
-                        <span className="block text-[11px] text-muted-foreground leading-snug truncate mt-0.5">
-                          {theme.research_question.slice(0, 50)}
-                          {theme.research_question.length > 50 ? '…' : ''}
-                        </span>
-                      </div>
-                      <span className="shrink-0 text-[10px] text-muted-foreground">
-                        {count} {count === 1 ? 'pt' : 'pts'}
-                      </span>
-                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0 group-hover:text-talwa-teal transition-colors" />
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
 
 /* ── Feature detail expanded (replaces map column) ── */
 
+const EXPANDED_SKETCH_PREVIEW = 4
+const EXPANDED_DP_PREVIEW = 3
+
 type FeatureDetailExpandedProps = {
   feature: Feature
   sketches: Sketch[]
   sketchesLoading: boolean
+  featureDataPoints: DataPoint[]
+  themes: Theme[]
   canEdit: boolean
   onBackToMap: () => void
   onDismiss: () => void
@@ -1565,11 +1471,93 @@ function FeatureDetailExpanded({
   feature,
   sketches,
   sketchesLoading,
+  featureDataPoints,
+  themes,
   canEdit,
   onBackToMap,
   onDismiss,
   onEditStart,
 }: FeatureDetailExpandedProps) {
+  const [subView, setSubView] = useState<'main' | 'data-points' | 'sketches'>('main')
+
+  const featureId = feature.id
+  const prevRef = useRef(featureId)
+  if (prevRef.current !== featureId) {
+    prevRef.current = featureId
+    setSubView('main')
+  }
+
+  /* Sub-view: all data points */
+  if (subView === 'data-points') {
+    return (
+      <div className="flex flex-col h-full bg-talwa-cream">
+        <div className="flex items-center gap-2 px-4 h-12 border-b border-border shrink-0 bg-background">
+          <button onClick={() => setSubView('main')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-talwa-teal transition-colors">
+            <ChevronLeft className="w-4 h-4" />
+            <span>{feature.name}</span>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
+          <h3 className="font-heading text-base font-semibold text-talwa-navy">
+            Community perspectives ({featureDataPoints.length})
+          </h3>
+          {featureDataPoints.map((dp) => {
+            const dpThemes = themes.filter((t) => dp.theme_ids.includes(t.id))
+            return (
+              <div key={dp.id} className="rounded-lg border border-border bg-background px-3 py-2.5">
+                <div className="flex items-start gap-2">
+                  {dp.location && <MapPin className="w-3.5 h-3.5 text-talwa-burnt-orange shrink-0 mt-0.5" />}
+                  <p className="text-sm text-talwa-navy leading-relaxed italic flex-1">&ldquo;{dp.content}&rdquo;</p>
+                </div>
+                {dpThemes.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {dpThemes.map((t) => (
+                      <span key={t.id} className="text-[10px] text-talwa-teal bg-talwa-sky/50 rounded-full px-2 py-0.5">{t.name}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  /* Sub-view: all sketches */
+  if (subView === 'sketches') {
+    return (
+      <div className="flex flex-col h-full bg-talwa-cream">
+        <div className="flex items-center gap-2 px-4 h-12 border-b border-border shrink-0 bg-background">
+          <button onClick={() => setSubView('main')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-talwa-teal transition-colors">
+            <ChevronLeft className="w-4 h-4" />
+            <span>{feature.name}</span>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          <h3 className="font-heading text-base font-semibold text-talwa-navy mb-3">Sketches ({sketches.length})</h3>
+          <div className="grid grid-cols-3 gap-3">
+            {sketches.map((sketch) => (
+              <div key={sketch.id} className="rounded-lg overflow-hidden border border-border bg-background">
+                {sketch.image ? (
+                  <div className="relative aspect-video">
+                    <Image src={sketch.image} alt={sketch.caption || 'Sketch'} fill className="object-cover" />
+                  </div>
+                ) : (
+                  <div className="aspect-video bg-muted flex items-center justify-center">
+                    <span className="text-xs text-muted-foreground">No image</span>
+                  </div>
+                )}
+                {sketch.caption && <p className="px-2 py-1.5 text-xs text-talwa-navy leading-snug">{sketch.caption}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  /* Main view */
   return (
     <div className="flex flex-col h-full bg-talwa-cream">
       {/* Header */}
@@ -1619,29 +1607,62 @@ function FeatureDetailExpanded({
           )}
         </div>
 
+        {/* Data Points */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-heading text-base font-semibold text-talwa-navy">
+              Community perspectives
+              {featureDataPoints.length > 0 && (
+                <span className="ml-1.5 text-sm font-normal text-muted-foreground">({featureDataPoints.length})</span>
+              )}
+            </h3>
+            {featureDataPoints.length > EXPANDED_DP_PREVIEW && (
+              <button onClick={() => setSubView('data-points')} className="text-xs font-medium text-talwa-teal hover:text-talwa-teal/80 transition-colors">
+                See all
+              </button>
+            )}
+          </div>
+          {featureDataPoints.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No perspectives yet for this feature.</p>
+          ) : (
+            <div className="space-y-2">
+              {featureDataPoints.slice(0, EXPANDED_DP_PREVIEW).map((dp) => (
+                <div key={dp.id} className="rounded-lg border border-border bg-background px-3 py-2.5">
+                  <div className="flex items-start gap-2">
+                    {dp.location && <MapPin className="w-3.5 h-3.5 text-talwa-burnt-orange shrink-0 mt-0.5" />}
+                    <p className="text-sm text-talwa-navy leading-relaxed italic flex-1">&ldquo;{dp.content}&rdquo;</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Sketches */}
         <div>
-          <h3 className="font-heading text-base font-semibold text-talwa-navy mb-3">Sketches</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-heading text-base font-semibold text-talwa-navy">Sketches</h3>
+            {sketches.length > EXPANDED_SKETCH_PREVIEW && (
+              <button onClick={() => setSubView('sketches')} className="text-xs font-medium text-talwa-teal hover:text-talwa-teal/80 transition-colors">
+                See all ({sketches.length})
+              </button>
+            )}
+          </div>
           {sketchesLoading ? (
-            <div className="grid grid-cols-2 gap-3">
-              {[0, 1, 2, 3].map((i) => (
+            <div className="grid grid-cols-3 gap-3">
+              {[0, 1, 2].map((i) => (
                 <div key={i} className="aspect-video rounded-lg bg-muted animate-pulse" />
               ))}
             </div>
           ) : sketches.length === 0 ? (
             <p className="text-sm text-muted-foreground">No sketches yet for this feature.</p>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {sketches.map((sketch) => (
+            <div className="grid grid-cols-3 gap-3">
+              {sketches.slice(0, EXPANDED_SKETCH_PREVIEW).map((sketch) => (
                 <div key={sketch.id} className="rounded-lg overflow-hidden border border-border bg-background">
                   {sketch.image ? (
                     <div className="relative aspect-video">
-                      <Image
-                        src={sketch.image}
-                        alt={sketch.caption || 'Sketch'}
-                        fill
-                        className="object-cover"
-                      />
+                      <Image src={sketch.image} alt={sketch.caption || 'Sketch'} fill className="object-cover" />
                     </div>
                   ) : (
                     <div className="aspect-video bg-muted flex items-center justify-center">
@@ -1649,15 +1670,118 @@ function FeatureDetailExpanded({
                     </div>
                   )}
                   {sketch.caption && (
-                    <p className="px-2.5 py-2 text-xs text-talwa-navy leading-snug">
-                      {sketch.caption}
-                    </p>
+                    <p className="px-2 py-1.5 text-xs text-talwa-navy leading-snug">{sketch.caption}</p>
                   )}
                 </div>
               ))}
             </div>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Insights detail view (replaces chat pane when theme CTA clicked) ── */
+
+type InsightsDetailViewProps = {
+  theme: Theme
+  dataPoints: DataPoint[]
+  features: Feature[]
+  focusedFeatureId: string | null
+  onBack: () => void
+  onFocusFeature: (featureId: string | null) => void
+  onSwitchToMap: () => void
+}
+
+function InsightsDetailView({
+  theme,
+  dataPoints,
+  features,
+  focusedFeatureId,
+  onBack,
+  onFocusFeature,
+  onSwitchToMap,
+}: InsightsDetailViewProps) {
+  return (
+    <div className="flex flex-col flex-1 min-h-0 bg-talwa-cream">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 h-11 border-b border-border shrink-0 bg-background">
+        <button
+          onClick={onBack}
+          className="text-muted-foreground hover:text-talwa-navy transition-colors shrink-0"
+          aria-label="Back to chat"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide leading-none mb-0.5">Community insight</p>
+          <h2 className="font-heading text-sm font-semibold text-talwa-navy truncate">{theme.name}</h2>
+        </div>
+        <button
+          onClick={onSwitchToMap}
+          className="md:hidden flex items-center gap-1 text-xs text-talwa-teal hover:text-talwa-teal/80 transition-colors shrink-0"
+        >
+          <MapIcon className="w-3.5 h-3.5" />
+          Map
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <p className="text-sm text-talwa-navy/80 leading-relaxed">{theme.summary}</p>
+
+        {dataPoints.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {dataPoints.length} {dataPoints.length === 1 ? 'perspective' : 'perspectives'}
+            </p>
+            {dataPoints.map((dp) => {
+              const featureName = dp.feature_id
+                ? (features.find((f) => f.id === dp.feature_id)?.name ?? null)
+                : null
+              const isFocused = !!dp.feature_id && focusedFeatureId === dp.feature_id
+              return (
+                <button
+                  key={dp.id}
+                  onClick={() => dp.feature_id && onFocusFeature(isFocused ? null : dp.feature_id)}
+                  className={cn(
+                    'w-full text-left rounded-lg px-3 py-2.5 transition-colors border',
+                    isFocused
+                      ? 'bg-talwa-olive-light/30 border-talwa-olive'
+                      : dp.feature_id
+                        ? 'bg-background border-border hover:border-talwa-sky cursor-pointer'
+                        : 'bg-background border-border cursor-default'
+                  )}
+                >
+                  <div className="flex items-start gap-2">
+                    {dp.location && <MapPin className="w-3.5 h-3.5 text-talwa-burnt-orange shrink-0 mt-0.5" />}
+                    <p className="text-sm text-talwa-navy leading-relaxed italic flex-1">
+                      &ldquo;{dp.content}&rdquo;
+                    </p>
+                  </div>
+                  {(featureName || isFocused) && (
+                    <div className="flex items-center justify-between mt-1.5 gap-2">
+                      {featureName && (
+                        <span className="text-[11px] text-talwa-teal font-medium">{featureName}</span>
+                      )}
+                      {isFocused && (
+                        <span
+                          className="md:hidden text-[11px] text-talwa-teal underline"
+                          onClick={(e) => { e.stopPropagation(); onSwitchToMap() }}
+                        >
+                          See on map
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No perspectives recorded for this theme yet.</p>
+        )}
       </div>
     </div>
   )

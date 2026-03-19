@@ -10,7 +10,6 @@ export function buildFacilitatorSystemPrompt({
   activeFeature,
   contributorDrew = false,
   attachedDocumentChunks,
-  insightsMode = false,
 }: {
   project: Project
   features: Feature[]
@@ -21,7 +20,6 @@ export function buildFacilitatorSystemPrompt({
   activeFeature?: Feature | null
   contributorDrew?: boolean
   attachedDocumentChunks?: string[]
-  insightsMode?: boolean
 }): string {
   const featureList = features.length > 0
     ? features.map(f => `- ${f.name} (${f.type}): ${f.description}`).join('\n')
@@ -91,25 +89,25 @@ YOUR CONVERSATION APPROACH:
 - Focus on one topic at a time rather than overwhelming with multiple questions
 - When the conversation has covered a location and moves to a new topic, call reset_location()
 
+SURFACING COMMUNITY INSIGHTS:
+When a contributor asks what others have said, what the community thinks, or about existing insights, don't immediately dump all themes. Instead:
+1. Ask 1–2 focused follow-up questions to understand what they're most curious about — which place, which aspect of the project, or which concern
+2. Once you have enough context, call surface_theme() for the 1–2 themes most relevant to what they asked
+3. Frame it conversationally before calling the tool: "A few people have raised something similar about that area…" then surface the theme
+4. After surfacing a theme, invite the contributor to react: "Does that resonate with your experience?"
+5. If they want to explore more themes, surface them one at a time as the conversation develops
+
 TOOL USAGE:
-- surface_theme(theme_id): ALWAYS call this tool when referencing community themes. Never describe theme content in your text — the tool renders a visual card that the contributor can interact with. If the contributor asks about community insights or what others have said, call surface_theme for each relevant theme rather than paraphrasing.
+- surface_theme(theme_id): ALWAYS call this tool when referencing community themes. Never describe theme content in your text — the tool renders a visual card that the contributor can interact with.
 - surface_data_point(data_point_id): Show a specific data point when a map marker is clicked or when a specific piece of feedback is relevant.
 - reset_location(): Clear the active map pin when the conversation moves away from a specific location.
 
-CRITICAL: When you want to share what the community has been saying, you MUST call surface_theme() with the theme ID. Do NOT summarize or paraphrase theme content in plain text. The card provides the summary — your message should frame it conversationally (e.g. "Here's something the community has been discussing…") and then call the tool. Let the card speak for itself.
+CRITICAL: When you reference a community theme, you MUST call surface_theme() with the theme ID. Do NOT summarize or paraphrase theme content in plain text. Your message should frame it conversationally (e.g. "Here's something that's been coming up…"), then call the tool. Let the card speak for itself.
 
 VISUALIZATION CAPABILITY:
 Contributors can generate AI design sketches of any map feature. If someone expresses interest in seeing what a space could look like — what a park could become, how a path might be redesigned, what a plaza could feel like — you can mention this naturally:
 "If you'd like to explore that idea visually, tap the + button next to the chat input and choose Visualize — you can generate a concept sketch of that space."
 If no feature has been drawn yet, guide them first: "To do that, you'd need to mark the area on the map first using the drawing tools in the top-right corner of the map panel. Once you've traced the space, the Visualize option will be available."
 Only mention this when it genuinely fits the conversation — don't force it.
-${insightsMode ? `
-INSIGHTS MODE (ACTIVE):
-The contributor has opted in to explore community insights. You should now proactively share what the community has been saying:
-- Surface relevant themes using surface_theme() more freely — don't wait for a direct connection, offer themes that relate to the current topic or that might interest the contributor
-- Frame insights conversationally: "Here's something others in the community have been talking about…" or "This connects to a theme that's been emerging…"
-- When you surface a theme, briefly describe it and invite the contributor to react or share their own perspective
-- You can still collect new feedback — insights mode complements, not replaces, the dialogue
-- If the contributor asks about a specific theme, drill deeper by surfacing it and discussing the perspectives behind it` : ''}
 ${locationContext}`
 }

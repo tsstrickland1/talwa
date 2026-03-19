@@ -58,7 +58,6 @@ export function useFacilitator({
   const [activeFeature, setActiveFeature] = useState<Feature | null>(null)
   const [contributorDrew, setContributorDrew] = useState(false)
   const [surfacedContent, setSurfacedContent] = useState<SurfacedContent>(null)
-  const [insightsMode, setInsightsMode] = useState(false)
   const [initialMessages, setInitialMessages] = useState<Message[]>([])
   const [historyLoaded, setHistoryLoaded] = useState(false)
 
@@ -88,7 +87,6 @@ export function useFacilitator({
       project_id: projectId,
       conversation_id: conversationId,
       vector_store_id: vectorStoreId,
-      insights_mode: insightsMode,
     },
     onToolCall: ({ toolCall }) => {
       switch (toolCall.toolName) {
@@ -147,22 +145,16 @@ export function useFacilitator({
     setSurfacedContent(null)
   }, [])
 
-  const toggleInsightsMode = useCallback(() => {
-    setInsightsMode((prev) => !prev)
-  }, [])
-
   return {
     ...chat,
     activePin,
     activeFeature,
     contributorDrew,
     surfacedContent,
-    insightsMode,
     historyLoaded,
     pinLocation,
     activateDrawnFeature,
     clearPin,
     clearSurface,
-    toggleInsightsMode,
   }
 }

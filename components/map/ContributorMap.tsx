@@ -28,6 +28,7 @@ type ContributorMapProps = {
   onFeatureDraw?: (geojson: FeatureGeoJSON) => void
   onGeometryUpdate?: (geojson: FeatureGeoJSON) => void
   highlightedDataPoints?: DataPoint[]
+  highlightedFeatureIds?: string[]
 }
 
 export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapProps>(
@@ -46,10 +47,11 @@ export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapPro
       onFeatureDraw,
       onGeometryUpdate,
       highlightedDataPoints = [],
+      highlightedFeatureIds = [],
     },
     ref
   ) {
-    const { mapContainerRef, addPin, removePin, filterToDataPoints, addFeatureLayer, removeFeatureLayer, cancelDraw, startEditGeometry, stopEditGeometry, flyToFeature } = useMap({
+    const { mapContainerRef, addPin, removePin, filterToDataPoints, highlightFeatures, addFeatureLayer, removeFeatureLayer, cancelDraw, startEditGeometry, stopEditGeometry, flyToFeature } = useMap({
       mapboxToken,
       center,
       zoom,
@@ -84,6 +86,11 @@ export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapPro
     useEffect(() => {
       filterToDataPoints(highlightedDataPoints)
     }, [highlightedDataPoints, filterToDataPoints])
+
+    // Sync feature highlight state
+    useEffect(() => {
+      highlightFeatures(highlightedFeatureIds)
+    }, [highlightedFeatureIds, highlightFeatures])
 
     return (
       <div className={cn('relative w-full h-full', className)}>

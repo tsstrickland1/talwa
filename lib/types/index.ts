@@ -246,7 +246,6 @@ export type FacilitatorRequestBody = {
   project_id: string
   conversation_id: string
   vector_store_id: string | null
-  insights_mode?: boolean
 }
 
 export type ExtractRequestBody = {
