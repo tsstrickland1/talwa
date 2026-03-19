@@ -50,7 +50,9 @@ export function ChatContainer({
               </p>
             </div>
           )}
-          {messages.map((message) => (
+          {messages
+            .filter((m) => m.role === 'user' || (m.content && m.content.trim().length > 0))
+            .map((message) => (
             <MessageBubble
               key={message.id}
               role={message.role as 'user' | 'assistant'}
