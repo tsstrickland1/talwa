@@ -27,9 +27,11 @@ import {
   Minimize2,
   Maximize2,
   ChevronDown,
+  ChevronRight,
   Loader2,
   FileText,
   Lightbulb,
+  MapPin,
   LogOut,
 } from 'lucide-react'
 import {
@@ -805,6 +807,7 @@ export function ContributorChatPanel({
                     (dp) => dp.feature_id === selectedFeature.id && dp.theme_ids.includes(t.id)
                   )
                 )}
+                featureDataPoints={dataPoints.filter((dp) => dp.feature_id === selectedFeature.id)}
                 onThemeClick={handleThemeClick}
               />
             )}
@@ -1263,6 +1266,7 @@ type FeatureDetailPanelProps = {
   onEditCancel: () => void
   onEditSave: (featureId: string, updates: { name: string; type: FeatureType; description: string }) => void
   featureThemes?: Theme[]
+  featureDataPoints?: DataPoint[]
   onThemeClick?: (theme: Theme) => void
 }
 
@@ -1279,12 +1283,14 @@ function FeatureDetailPanel({
   onEditCancel,
   onEditSave,
   featureThemes = [],
+  featureDataPoints = [],
   onThemeClick,
 }: FeatureDetailPanelProps) {
   const [editName, setEditName] = useState(feature.name)
   const [editType, setEditType] = useState<FeatureType>(feature.type)
   const [editDescription, setEditDescription] = useState(feature.description)
   const [saving, setSaving] = useState(false)
+  const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null)
 
   const featureId = feature.id
   const prevFeatureIdRef = useRef(featureId)
@@ -1293,7 +1299,16 @@ function FeatureDetailPanel({
     setEditName(feature.name)
     setEditType(feature.type)
     setEditDescription(feature.description)
+    setSelectedInsightId(null)
   }
+
+  const selectedInsight = selectedInsightId
+    ? featureThemes.find((t) => t.id === selectedInsightId) ?? null
+    : null
+
+  const insightDataPoints = selectedInsight
+    ? featureDataPoints.filter((dp) => dp.theme_ids.includes(selectedInsight.id))
+    : []
 
   async function handleSave() {
     setSaving(true)
@@ -1440,19 +1455,94 @@ function FeatureDetailPanel({
         </p>
       )}
 
-      {/* Associated themes */}
+      {/* Insights section */}
       {featureThemes.length > 0 && (
-        <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-          {featureThemes.map((theme) => (
-            <button
-              key={theme.id}
-              onClick={() => onThemeClick?.(theme)}
-              className="inline-flex items-center gap-1 rounded-full bg-talwa-sky/60 px-2.5 py-1 text-[11px] font-medium text-talwa-teal hover:bg-talwa-sky transition-colors"
-            >
-              <MessageSquare className="w-3 h-3" />
-              {theme.name}
-            </button>
-          ))}
+        <div className="border-t border-talwa-sky/30">
+          {selectedInsight ? (
+            /* ── Theme detail view ── */
+            <div className="px-4 py-3">
+              <button
+                onClick={() => setSelectedInsightId(null)}
+                className="flex items-center gap-1 text-[11px] font-medium text-talwa-teal hover:text-talwa-teal/80 transition-colors mb-2"
+              >
+                <ChevronLeft className="w-3 h-3" />
+                Insights
+              </button>
+              <h4 className="font-heading font-semibold text-talwa-navy text-[13px] leading-tight mb-1">
+                {selectedInsight.name}
+              </h4>
+              <p className="text-[11px] text-muted-foreground leading-relaxed mb-2">
+                {selectedInsight.summary}
+              </p>
+              {insightDataPoints.length > 0 && (
+                <div className="max-h-[120px] overflow-y-auto space-y-2">
+                  {insightDataPoints.map((dp) => (
+                    <div
+                      key={dp.id}
+                      className="flex items-start gap-1.5 rounded-lg bg-talwa-cream/60 px-2.5 py-2"
+                    >
+                      {dp.location && (
+                        <MapPin className="w-3 h-3 text-talwa-burnt-orange shrink-0 mt-0.5" />
+                      )}
+                      <p className="text-[11px] text-talwa-navy/80 leading-relaxed italic">
+                        &ldquo;{dp.content}&rdquo;
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {onThemeClick && (
+                <button
+                  onClick={() => onThemeClick(selectedInsight)}
+                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-talwa-teal hover:text-talwa-teal/80 transition-colors"
+                >
+                  <MessageSquare className="w-3 h-3" />
+                  Ask in chat
+                </button>
+              )}
+            </div>
+          ) : (
+            /* ── Theme list view ── */
+            <div className="px-4 py-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Lightbulb className="w-3.5 h-3.5 text-talwa-olive" />
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                  Insights
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  ({featureThemes.length})
+                </span>
+              </div>
+              <div className="max-h-[180px] overflow-y-auto space-y-1">
+                {featureThemes.map((theme) => {
+                  const count = featureDataPoints.filter((dp) =>
+                    dp.theme_ids.includes(theme.id)
+                  ).length
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => setSelectedInsightId(theme.id)}
+                      className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2.5 text-left hover:bg-talwa-sky/30 transition-colors group"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <span className="block text-[13px] font-medium text-talwa-navy leading-tight truncate">
+                          {theme.name}
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground leading-snug truncate mt-0.5">
+                          {theme.research_question.slice(0, 50)}
+                          {theme.research_question.length > 50 ? '…' : ''}
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {count} {count === 1 ? 'pt' : 'pts'}
+                      </span>
+                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0 group-hover:text-talwa-teal transition-colors" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
