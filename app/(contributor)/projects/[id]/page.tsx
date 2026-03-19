@@ -125,6 +125,8 @@ export default async function ContributorProjectPage({ params }: Props) {
       <ContributorChatPanel
         project={project as Project}
         features={(features ?? []) as Feature[]}
+        themes={(themes ?? []) as Theme[]}
+        dataPoints={(dataPoints ?? []) as DataPoint[]}
         conversationId={conversation.id}
         userId={authUser.id}
         mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
