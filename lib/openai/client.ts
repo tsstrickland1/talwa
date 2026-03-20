@@ -1,11 +1,13 @@
 import { createOpenAI } from '@ai-sdk/openai'
 
-// AI SDK provider — use this in route handlers with streamText / generateObject
+// AI SDK provider — uses the OpenAI Responses API
 export const openaiProvider = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-// Helper to get a model by name
+/**
+ * Get a model via the Responses API.
+ */
 export function getModel(modelId: string) {
-  return openaiProvider(modelId)
+  return openaiProvider.responses(modelId)
 }

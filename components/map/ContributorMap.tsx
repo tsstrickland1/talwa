@@ -3,7 +3,7 @@
 import { useEffect, useImperativeHandle, forwardRef } from 'react'
 import { cn } from '@/lib/utils'
 import { useMap } from '@/hooks/useMap'
-import type { Feature, FeatureGeoJSON, Location } from '@/lib/types'
+import type { DataPoint, Feature, FeatureGeoJSON, Location } from '@/lib/types'
 
 export type ContributorMapHandle = {
   addFeatureLayer: (feature: Feature) => void
@@ -27,6 +27,8 @@ type ContributorMapProps = {
   onMapClick?: (location: Location) => void
   onFeatureDraw?: (geojson: FeatureGeoJSON) => void
   onGeometryUpdate?: (geojson: FeatureGeoJSON) => void
+  highlightedDataPoints?: DataPoint[]
+  highlightedFeatureIds?: string[]
 }
 
 export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapProps>(
@@ -44,10 +46,12 @@ export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapPro
       onMapClick,
       onFeatureDraw,
       onGeometryUpdate,
+      highlightedDataPoints = [],
+      highlightedFeatureIds = [],
     },
     ref
   ) {
-    const { mapContainerRef, addPin, removePin, addFeatureLayer, removeFeatureLayer, cancelDraw, startEditGeometry, stopEditGeometry, flyToFeature } = useMap({
+    const { mapContainerRef, addPin, removePin, filterToDataPoints, highlightFeatures, addFeatureLayer, removeFeatureLayer, cancelDraw, startEditGeometry, stopEditGeometry, flyToFeature } = useMap({
       mapboxToken,
       center,
       zoom,
@@ -77,6 +81,16 @@ export const ContributorMap = forwardRef<ContributorMapHandle, ContributorMapPro
         removePin()
       }
     }, [activePin, addPin, removePin])
+
+    // Sync data point markers when a theme is surfaced
+    useEffect(() => {
+      filterToDataPoints(highlightedDataPoints)
+    }, [highlightedDataPoints, filterToDataPoints])
+
+    // Sync feature highlight state
+    useEffect(() => {
+      highlightFeatures(highlightedFeatureIds)
+    }, [highlightedFeatureIds, highlightFeatures])
 
     return (
       <div className={cn('relative w-full h-full', className)}>

@@ -1,6 +1,6 @@
 'use client'
 
-import { X, MessageSquare } from 'lucide-react'
+import { X, MessageSquare, Map as MapIcon, ArrowRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { Theme, DataPoint } from '@/lib/types'
@@ -9,14 +9,16 @@ type ThemeSurfaceProps = {
   theme: Theme | null
   dataPoints?: DataPoint[]
   onDismiss?: () => void
-  onViewAll?: () => void
+  onDetailView?: () => void
+  onViewMap?: () => void // mobile only — switch to map tab
 }
 
 export function ThemeSurface({
   theme,
   dataPoints = [],
   onDismiss,
-  onViewAll,
+  onDetailView,
+  onViewMap,
 }: ThemeSurfaceProps) {
   if (!theme) return null
 
@@ -45,18 +47,30 @@ export function ThemeSurface({
         {theme.summary}
       </p>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <Badge variant="sky" className="text-xs">
           {dataPoints.length} {dataPoints.length === 1 ? 'perspective' : 'perspectives'}
         </Badge>
-        {onViewAll && dataPoints.length > 0 && (
-          <button
-            onClick={onViewAll}
-            className="text-xs text-talwa-teal underline underline-offset-2 hover:no-underline"
-          >
-            View all
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {onViewMap && (
+            <button
+              onClick={onViewMap}
+              className="md:hidden flex items-center gap-1 text-xs text-talwa-teal hover:text-talwa-teal/80 transition-colors"
+            >
+              <MapIcon className="h-3 w-3" />
+              View on map
+            </button>
+          )}
+          {onDetailView && dataPoints.length > 0 && (
+            <button
+              onClick={onDetailView}
+              className="flex items-center gap-1 text-xs font-medium text-talwa-teal hover:text-talwa-teal/80 transition-colors"
+            >
+              Explore perspectives
+              <ArrowRight className="h-3 w-3" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

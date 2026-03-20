@@ -440,6 +440,35 @@ export function useMap({
     [isLoaded]
   )
 
+  const highlightFeatures = useCallback((featureIds: string[]) => {
+    const map = mapRef.current
+    if (!map || !isLoaded) return
+    const highlighted = new Set(featureIds)
+    const seen = new Set<string>()
+    for (const feature of layerFeatureMapRef.current.values()) {
+      if (seen.has(feature.id)) continue
+      seen.add(feature.id)
+      const layerId = `feature-layer-${feature.id}`
+      const fillId = `${layerId}-fill`
+      const isHl = highlighted.size > 0 && highlighted.has(feature.id)
+      try {
+        if (map.getLayer(fillId)) {
+          map.setPaintProperty(fillId, 'fill-color', isHl ? '#ADA739' : '#0A4F66')
+          map.setPaintProperty(fillId, 'fill-opacity', isHl ? 0.35 : 0.15)
+        }
+        if (map.getLayer(layerId)) {
+          const type = map.getLayer(layerId).type
+          if (type === 'line') {
+            map.setPaintProperty(layerId, 'line-color', isHl ? '#ADA739' : '#0A4F66')
+            map.setPaintProperty(layerId, 'line-width', isHl ? 3 : 2)
+          } else if (type === 'circle') {
+            map.setPaintProperty(layerId, 'circle-color', isHl ? '#BD4F00' : '#ADA739')
+          }
+        }
+      } catch { /* layer may not exist */ }
+    }
+  }, [isLoaded])
+
   const addFeatureLayer = useCallback((feature: Feature) => {
     if (!mapRef.current) return
     addFeatureLayerToMap(mapRef.current, feature, layerFeatureMapRef.current)
@@ -504,6 +533,7 @@ export function useMap({
     addPin,
     removePin,
     filterToDataPoints,
+    highlightFeatures,
     addFeatureLayer,
     removeFeatureLayer,
     startEditGeometry,

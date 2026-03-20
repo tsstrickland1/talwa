@@ -25,7 +25,7 @@ const statusVariants: Record<Project['status'], 'default' | 'secondary' | 'outli
 
 export function ProjectCard({ project }: ProjectCardProps) {
   return (
-    <Link href={`/projects/${project.id}/insights`}>
+    <Link href={`/projects/${project.id}`}>
       <Card className="h-full hover:shadow-md transition-all hover:border-talwa-sky overflow-hidden group">
         {project.featured_image && (
           <div className="relative h-48 overflow-hidden">
